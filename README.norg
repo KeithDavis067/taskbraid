@@ -1,0 +1,24 @@
+@document.meta
+title: README
+description: Readme file for taskbraid info.
+authors: metaphysus
+categories: Project documentation.
+created: 2023-08-14
+updated: 2023-08-14
+version: 1.1.1
+@end
+
+This is an attempt to build a project that will manage my work efforts effectively.
+It will consist of a series of documents and blog posts regarding my "doing things" philosophy, and my efforts to build a tool that works for me.
+See the [roadmap]{# roadmap} for the plan.
+
+* File Structure
+ - todoist-utils
+  -- todoist-view
+     A module to view todoist tasks.
+
+
+* Roadmap
+** Todoist Phase
+   Use todoist as the task entry, and sync engine.
+   - ( ) List all tasks in a specified order.

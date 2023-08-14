@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "todoist-view"
+version = "0.1.0"
+description = "A project to view todoist tasks the way I want."
+authors = ["metaphysus <metaphysus@gmail.com>"]
+readme = "README.md"
+packages = [{include = "todoist_view"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+todoist-api = "^2.0.2"
+networkx = "^3.1"
+rich = "^13.5.2"
+requests = "^2.31.0"
+typer = "^0.9.0"
+
+[tool.poetry.group.dev.dependencies]
+ipython = "^8.14.0"
+pytest = "^7.4.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
