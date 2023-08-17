@@ -1,10 +1,12 @@
-from todoist_api.api import TodoistAPI
+from todoist_api_python.api import TodoistAPI
 # from todoist_api.api_async import TodoistAPIAsync
 import typer
 from typing_extensions import Annotated
-from rich import print, inspect
+from rich import print
+from rich.tree import Tree
+import os
 
-app = typer.Typer()
+app = typer.Typer(chain=True)
 state = {"api": None}
 
 PROJECT_KEYS = ["color",
@@ -54,17 +56,32 @@ TASK_KEYS = [
 #     view_style='list'
 # )
 #
+#
+# def item_as_branch(item):
+#     match type(item):
+#
+#     Example commands for planning:
+#     IF overall cli is called "tdcli"
+#     tdcli show projects
+#     tdcli show all projects
+#     tdcli
+#
 
 
-# def show_item(item, style="minimal"):
-#     """Select better printing for items."""
-#     collected = {}
-#
-#     if style.lower() in ["min", "minimal"]:
-#         keys = ["name", "parent_id", "color", ]
-#
-#     for key in keys:
-#
+def project_to_tree(projects):
+    pt = Tree("Projects")
+    topprojects = list(filter(lambda proj: proj.parent_id is None, projects))
+    subprojects = list(
+        filter(lambda proj: proj.parent_id is not None, projects))
+    for project in topprojects:
+        branch = pt.add(project.name)
+        for p in filter(lambda proj: proj.parent_id == project.id,
+                        subprojects):
+            branch.add(p.name)
+
+    return pt
+
+
 @app.command()
 def show(itemkind: str):
     api = state["api"]
@@ -76,19 +93,21 @@ def show(itemkind: str):
         case "tasks":
             result = api.get_tasks()
 
-    print(result)
+    print(project_to_tree(result))
 
 
 @app.command()
-def create(itemkind: str):
+def add(itemkind: str):
     api = state["api"]
     print(f"Adding: {itemkind}")
 
 
 @app.callback()
-def main(api_key:
-         Annotated[str, typer.Argument(envvar="POETRY_TODOIST_API_KEY")]):
-
+def main():
+    # I should be able to set up this to take it from the environment
+    # or an argument, but it's taking the argument with the env variable
+    # as the command.
+    api_key = os.environ.get("TODOIST_API_KEY")
     state["api"] = TodoistAPI(api_key)
 
 

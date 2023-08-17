@@ -13,9 +13,26 @@ It will consist of a series of documents and blog posts regarding my "doing thin
 See the [roadmap]{# roadmap} for the plan.
 
 * File Structure
- - todoist-utils
-  -- todoist-view
-     A module to view todoist tasks.
+** posts
+** src
+*** tbtd
+    A python module that creates a cli for todoist.
+    It's primary purpose is to provide network graphs of the tasks already in todoist.
+    Eventually it will provide synchronization between todoist and other ways of storing task data.
+**** tbtd.py
+     A cli for all todoist operations.
+***** responsibilities:
+      - Get api_key from user or envvar
+      - create connection to todoist.
+      - call other apps / modules as commands
+**** convert.py
+     purpose: to convert from one todoist class of object to another.
+**** view.py
+     purpose: to provide a series of views for the todoist task network.
+**** modify.py
+     purpose: to modify the tasks with the todoist api.
+
+
 
 
 * Roadmap
