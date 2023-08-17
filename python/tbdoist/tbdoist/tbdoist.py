@@ -1,10 +1,12 @@
+import os
+from networkx import DiGraph
+
 from todoist_api_python.api import TodoistAPI
 # from todoist_api.api_async import TodoistAPIAsync
 import typer
 from typing_extensions import Annotated
 from rich import print
 from rich.tree import Tree
-import os
 
 app = typer.Typer(chain=True)
 state = {"api": None}
@@ -66,6 +68,35 @@ TASK_KEYS = [
 #     tdcli show all projects
 #     tdcli
 #
+#
+
+
+def add_to_graph(obj, graph=None):
+    if graph is None:
+        graph = DiGraph()
+
+    failed_items = []
+    try:
+        graph.add_node(obj.id, item=obj)
+    except AttributeError:
+        try:
+            for item in obj:
+                graph, failed = add_to_graph(item, graph)
+                if failed:
+                    failed_items.extend(failed)
+            return (graph, failed_items)
+        except TypeError:
+            return (graph, [obj])
+
+    return (graph, failed_items)
+
+
+def link_to_parents(graph):
+    for node in graph.nodes():
+        try:
+            graph.add_edge(node, node.item.parent_id)
+        except AttributeError:
+            pass
 
 
 def project_to_tree(projects):
@@ -93,7 +124,10 @@ def show(itemkind: str):
         case "tasks":
             result = api.get_tasks()
 
-    print(project_to_tree(result))
+    graph, failed = add_to_graph(result)
+    link_to_parents(graph)
+    for node in graph:
+        print(node)
 
 
 @app.command()
