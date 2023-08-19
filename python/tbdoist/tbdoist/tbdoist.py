@@ -1,5 +1,5 @@
 import os
-from networkx import DiGraph
+from networkx import DiGraph, topological_generations
 
 from todoist_api_python.api import TodoistAPI
 # from todoist_api.api_async import TodoistAPIAsync
@@ -68,6 +68,17 @@ TASK_KEYS = [
 #     tdcli show all projects
 #     tdcli
 #
+
+
+# def build_graph(api):
+#     # The foolowing is sijmple, eventually we will add:
+#     # dates, collaborators and comments.
+#     item_types = {"projects": api.get_projects,
+#              "sections": api.get_sections,
+#              "tasks": api.get_tasks}
+#
+#     for itype in itemtypes:
+#         graph.add_nodes_from(item_types[itype]())
 #
 
 
@@ -92,25 +103,20 @@ def add_to_graph(obj, graph=None):
 
 
 def link_to_parents(graph):
-    for node in graph.nodes():
+    for node, data in graph.nodes.data():
         try:
-            graph.add_edge(node, node.item.parent_id)
+            pid = data["item"].parent_id
         except AttributeError:
-            pass
+            pid = None
+        if pid is not None:
+            graph.add_edge(pid, node)
 
 
-def project_to_tree(projects):
-    pt = Tree("Projects")
-    topprojects = list(filter(lambda proj: proj.parent_id is None, projects))
-    subprojects = list(
-        filter(lambda proj: proj.parent_id is not None, projects))
-    for project in topprojects:
-        branch = pt.add(project.name)
-        for p in filter(lambda proj: proj.parent_id == project.id,
-                        subprojects):
-            branch.add(p.name)
-
-    return pt
+# def graph_to_tree(graph):
+#     t = Tree("Projects")
+#     gens = topological_generations(graph)
+#     for gen in gens:
+#         for node in gen:
 
 
 @app.command()
@@ -126,8 +132,7 @@ def show(itemkind: str):
 
     graph, failed = add_to_graph(result)
     link_to_parents(graph)
-    for node in graph:
-        print(node)
+    return graph
 
 
 @app.command()
@@ -137,12 +142,15 @@ def add(itemkind: str):
 
 
 @app.callback()
-def main():
+def startup():
     # I should be able to set up this to take it from the environment
     # or an argument, but it's taking the argument with the env variable
     # as the command.
     api_key = os.environ.get("TODOIST_API_KEY")
-    state["api"] = TodoistAPI(api_key)
+    print(api_key)
+    api = TodoistAPI(api_key)
+    state["api"] = api
+    return api
 
 
 if __name__ == "__main__":
