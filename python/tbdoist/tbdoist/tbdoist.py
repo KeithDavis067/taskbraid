@@ -11,6 +11,37 @@ from rich.tree import Tree
 app = typer.Typer(chain=True)
 state = {"api": None}
 
+REQUEST_LIMIT = 450 / (15 * 60)  # 450 requests per 15 minutes.
+
+
+def throttle_requests(method):
+    if self.rate_if_call_now > self.rql:
+
+
+class ThrottledApi(TodoistAPI):
+    @classmethod
+    def wrap_api_calls(cls):
+        for method in [getattr(super(), m) for m in dir(super()) if not m.startswith("__") and callable(getattr(super(), m))]:
+            setattr(cls, throttle_requests(method))
+
+    @property
+    def rql(self):
+        return self.request_limit
+
+    @rql.setter
+    def rql(self, value):
+        self.request_limit = value
+
+    def __init__(self, *args, **kwargs):
+        self.request_limit = REQUEST_LIMIT
+        self.last_r_time = 0
+        self.r_rate = None
+        super().__init__(*args, **kwargs)
+
+    def update_rate(self):
+        print("Update Rate Here.")`
+
+
 PROJECT_KEYS = ["color",
                 "comment_count",
                 "id",
@@ -88,7 +119,7 @@ def add_to_graph(obj, graph=None):
 
     failed_items = []
     try:
-        graph.add_node(obj.id, item=obj)
+        graph.add_node(obj.id, todoist_item=obj)
     except AttributeError:
         try:
             for item in obj:
@@ -117,9 +148,10 @@ def link_to_parents(graph):
 #     gens = topological_generations(graph)
 #     for gen in gens:
 #         for node in gen:
+#
 
 
-@app.command()
+@ app.command()
 def show(itemkind: str):
     api = state["api"]
     print(f"Showing: {itemkind.lower()}")
@@ -130,18 +162,21 @@ def show(itemkind: str):
         case "tasks":
             result = api.get_tasks()
 
+        case "labels":
+            result = api.get_labels()
+
     graph, failed = add_to_graph(result)
     link_to_parents(graph)
     return graph
 
 
-@app.command()
+@ app.command()
 def add(itemkind: str):
     api = state["api"]
     print(f"Adding: {itemkind}")
 
 
-@app.callback()
+@ app.callback()
 def startup():
     # I should be able to set up this to take it from the environment
     # or an argument, but it's taking the argument with the env variable
