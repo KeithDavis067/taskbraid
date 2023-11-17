@@ -14,14 +14,12 @@ state = {"api": None}
 REQUEST_LIMIT = 450 / (15 * 60)  # 450 requests per 15 minutes.
 
 
-def throttle_requests(method):
-    if self.rate_if_call_now > self.rql:
-
-
 class ThrottledApi(TodoistAPI):
     @classmethod
     def wrap_api_calls(cls):
-        for method in [getattr(super(), m) for m in dir(super()) if not m.startswith("__") and callable(getattr(super(), m))]:
+        for method in [getattr(super(), m) for m in dir(super())
+                       if not m.startswith("__") and
+                       callable(getattr(super(), m))]:
             setattr(cls, throttle_requests(method))
 
     @property
