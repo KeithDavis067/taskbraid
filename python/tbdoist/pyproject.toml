@@ -16,6 +16,7 @@ plotly = "^5.18.0"
 pandas = "^2.1.4"
 nxutils = {path = "/Users/kdavis10/Documents/PythonProjects/nxutils", develop = true}
 rich = "^13.7.0"
+circle-cal = {path = "../circlecal", develop = true}
 
 [tool.poetry.group.dev.dependencies]
 ipython = "^8.14.0"

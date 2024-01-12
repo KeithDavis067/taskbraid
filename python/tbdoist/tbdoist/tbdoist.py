@@ -7,9 +7,13 @@ import typer
 from typing_extensions import Annotated
 from rich import print
 from rich.tree import Tree
+from dataclasses import asdict
 
 app = typer.Typer(chain=True)
 state = {"api": None}
+
+__all__ = ["ThrottledApi", "throttle_requests",
+           "tdobj_to_node", "tditer_to_graph"]
 
 REQUEST_LIMIT = 450 / (15 * 60)  # 450 requests per 15 minutes.
 
@@ -37,7 +41,7 @@ class ThrottledApi(TodoistAPI):
         super().__init__(*args, **kwargs)
 
     def update_rate(self):
-        print("Update Rate Here.")`
+        print("Update Rate Here.")
 
 
 PROJECT_KEYS = ["color",
@@ -71,82 +75,6 @@ TASK_KEYS = [
     "assignee_id",
     "assigner_id",
     "url"]
-
-# Project(
-#     color='charcoal',
-#     comment_count=0,
-#     id='2307271342',
-#     is_favorite=False,
-#     is_inbox_project=False,
-#     is_shared=False,
-#     is_team_inbox=False,
-#     name='General Project',
-#     order=2,
-#     parent_id='2307271348',
-#     url='https://todoist.com/showProject?id=2307271342',
-#     view_style='list'
-# )
-#
-#
-# def item_as_branch(item):
-#     match type(item):
-#
-#     Example commands for planning:
-#     IF overall cli is called "tdcli"
-#     tdcli show projects
-#     tdcli show all projects
-#     tdcli
-#
-
-
-# def build_graph(api):
-#     # The foolowing is sijmple, eventually we will add:
-#     # dates, collaborators and comments.
-#     item_types = {"projects": api.get_projects,
-#              "sections": api.get_sections,
-#              "tasks": api.get_tasks}
-#
-#     for itype in itemtypes:
-#         graph.add_nodes_from(item_types[itype]())
-#
-
-
-def add_to_graph(obj, graph=None):
-    if graph is None:
-        graph = DiGraph()
-
-    failed_items = []
-    try:
-        graph.add_node(obj.id, todoist_item=obj)
-    except AttributeError:
-        try:
-            for item in obj:
-                graph, failed = add_to_graph(item, graph)
-                if failed:
-                    failed_items.extend(failed)
-            return (graph, failed_items)
-        except TypeError:
-            return (graph, [obj])
-
-    return (graph, failed_items)
-
-
-def link_to_parents(graph):
-    for node, data in graph.nodes.data():
-        try:
-            pid = data["item"].parent_id
-        except AttributeError:
-            pid = None
-        if pid is not None:
-            graph.add_edge(pid, node)
-
-
-# def graph_to_tree(graph):
-#     t = Tree("Projects")
-#     gens = topological_generations(graph)
-#     for gen in gens:
-#         for node in gen:
-#
 
 
 @ app.command()
@@ -184,6 +112,99 @@ def startup():
     api = TodoistAPI(api_key)
     state["api"] = api
     return api
+
+
+def tdobj_to_node(tdobj, parent_attr_list=["parent_id", "project_id"]):
+    """ Return a node and edges suitable for adding to a graph.
+
+    tdobj: an todoist object, or an object with an `id` attribute
+        suitable as a nx.DiGraph node, and at least one of `parent_attr_list`
+        holding a node id to point to.
+            Example: {"id": 123, "parent_id": 321}
+    parent_attr_list: list of object attributes that may hold a parent node.
+
+    Returns:
+        A tuple of the id and id data suitable for adding to a graph, and a
+        dict mapping `parent_attr_list` to the edge data. Edge endpoints of
+        None are not returned.
+    """
+    try:
+        nd = asdict(tdobj)
+    except TypeError as e:
+        raise TypeError(f"asdict failed on {type(tdobj)}") from e
+
+    nd["obj"] = tdobj
+    edges = {}
+    for attr in parent_attr_list:
+        try:
+            # Parent ID can be None, not a valid edge.
+            if getattr(tdobj, attr) is not None:
+                edges[attr] = (tdobj.id, getattr(tdobj, attr))
+
+        except AttributeError:
+            pass
+    return (nd["id"], nd), edges
+
+
+def test_tdobj_to_node():
+    obj = {"name": "tester",
+           "id": 123,
+           "parent_id": 321}
+    assert tdobj_to_node(obj) == ((obj.id, obj),
+                                  {"parent_id": (obj.id, obj.parent_id)})
+    del obj["parent_id"]
+    obj["project_id"] = 321
+    assert tdobj_to_node(obj) == ((obj.id, obj),
+                                  {"project_id": (obj.id, obj.project_id)})
+    del obj["parent_id"]
+    assert tdobj_to_node(obj) == ((obj.id, obj),
+                                  {})
+
+    obj = {"name": "tester",
+           "id": 123,
+           "parent_id": 321,
+           "project_id": 213}
+    assert tdobj_to_node(obj) == ((obj.id, obj),
+                                  {"project_id": (obj.id, obj.project_id),
+                                   "parent_id": (obj.id, obj.parent_id),
+                                   }
+                                  )
+
+
+def tditer_to_graph(tditer,
+                    parent_attr_list=["parent_id", "project_id"],
+                    g=None):
+    """ Return a graph from an iterable.
+
+    Accepts an iterable of objects with at least an id attribute to be used as a node
+    and one attribute named in `parent_attr_list`, as a node to point to.
+
+    tditer: iterable of todoist objects.
+    parent_attr_list: list of object attributes that may hold parent node.
+        If multiple attributes have values, only the first is used.
+        (This is to keep subtasks from pointing to their project
+        and parent task.)
+    g: an nx.DiGraph to which the `tditer` objects are added.
+
+    Returns: A DiGraph of objects in `tditer`.
+    """
+    if g is None:
+        g = nx.DiGraph()
+    ndicts = {}
+    for obj in tditer:
+        nd, edges = tdobj_to_node(obj, parent_attr_list=parent_attr_list)
+        node, node_dict = nd
+        g.add_node(node, **node_dict)
+
+        for attr in parent_attr_list:
+            try:
+                g.add_edge(node, edges[attr][1])
+            except KeyError:
+                pass
+
+    # g.add_nodes_from(ndicts.items())
+    # g.add_edges_from(edges)
+    return g
 
 
 if __name__ == "__main__":
