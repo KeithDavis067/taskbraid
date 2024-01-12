@@ -1,0 +1,178 @@
+@document.meta
+title: orderist 
+description: Norg file that outputs python code for creating new behavior in todoist.
+authors: kwdprof@gmail.com
+categories: 
+created: 2023-07-24
+updated: 2023-08-14
+version: 1.1.1
+tangle: ./orderist.py
+@end
+
+* Purpose
+  Create a link between ToDoist, norg files, and a timeline option.
+
+* Goal Definitions.
+** ( ) Build a Tool that connects Todoist to other things.
+   - ( ) Sync Todoist with Neorg.
+   - ( ) Syng Neorg to todoist.
+
+
+  $ {# Grand Order}
+  The Grand Order uses the "next action" philosophy of autodoist to build a list of tasks in order. The specification is as follows.
+  - In Todoist's main list, the order of the projects, sections, tasks, and subtasks determines the order of the next action report.
+  -- To move the order, go to the main system and move the order of the item.
+  - Modify autodoist to create different behavior for priority items. For example a first priority item should ahve all of its tasks completed in order before the next task happens.
+
+  $ Boomerang tasks
+  Many tasks require the actions of others to plan or respond with. Create an option to "send" a task
+
+  $ {# Autocontext}
+  A method of adding context to subtasks by noting a part of the supertasks name as context and applying that to the beginning of the subtask's name separated by a `.`.
+* Time Is Everything
+   - Put tasks in order on todoist.
+   -- Declare when they can be done.
+   --- Office time.
+   --- Home time.
+   --- Play time.
+   --- Weekend time.
+   --- Other people's work hours.
+   --- evening time.
+   --- morning time.
+   - The algorithm takes your order and the kind of time and puts it onto the calendar.
+   - you declare times that are suitable.
+** Proposed Implementation
+   1. Add a set of events to the calendar that note what kind of time is happening.
+   ~~ The events are labelled with the kind of time.
+   ~~~ Office Time
+   ~~~ Home time.
+   ~~~ Weekend time.
+   ~~~ Evening time.
+   ~ The scheduler looks through the events and schedules them.
+
+* Implementation
+** Todoist API notes
+   [Todoist API Link]{https://developer.todoist.com/rest/v2/#overview}
+*** Todoist Object Examples
+**** `Project`(lang:todoist) Example
+     The following is an example from the spec of a request for a list of projects.
+     |example
+     #tangle.none
+     @code python
+     from todoist_api_python.api import TodoistAPI
+
+     api = TodoistAPI("0123456789abcdef0123456789")
+
+     try:
+         projects = api.get_projects()
+     print(projects)
+     except Exception as error:
+     print(error)
+     @end
+     |end
+     Which may return:
+     |example
+     #tangle.none
+     @code python
+     [
+         Project(
+             id: "220474322",
+             name: "Inbox",
+             comment_count: 10,
+             order: 0,
+             color: "grey",
+             is_shared: False,
+             is_favorite: False,
+             is_inbox_project: True,
+             is_team_inbox: False,
+             view_style: "list",
+             url: "https://todoist.com/showProject?id=220474322",
+             parent_id: None,
+         )
+     ]
+     @end
+     |end
+**** `Section`(lang:todoist) Example
+     #tangle.none
+     |example
+     @code python
+     Section(
+         id: "7025",
+         project_id: "2203306141",
+         order: 1,
+         name: "Groceries"
+     )
+     @end
+     |end
+**** `Task`(lang:todoist) Example
+     |example
+     #tangle.none
+     @code python
+     Task(
+         creator_id: "2671355",
+         created_at: "2019-12-11T22:36:50.000000Z",
+         assignee_id: "2671362",
+         assigner_id: "2671355",
+         comment_count: 10,
+         is_completed: False,
+         content: "Buy Milk",
+         description: "",
+         due: {
+             date: "2016-09-01",
+             is_recurring: false,
+             datetime: "2016-09-01T12:00:00.000000Z",
+             string: "tomorrow at 12",
+             timezone: "Europe/Moscow"
+         },
+         "duration": {
+             "amount": 15,
+             "unit": "minute"
+         },
+         id: "2995104339",
+         labels: ["Food", "Shopping"],
+         order: 1,
+         priority: 1,
+         project_id: "2203306141",
+         section_id: "7025",
+         parent_id: "2995104589",
+         url: "https://todoist.com/showTask?id=2995104339"
+     )
+     @end
+     |end
+
+** Todoist / Neorg Sync.
+  Create a basic one to one for the Todoist data model and the structure of a Neorg file.
+*** Todoist Sync Rules
+**** Mapping from todoist to Norg.
+     ~ Structural elements without the task extension (the parentheses) are projects or sections.
+     ~~ Projects have a `parent_id`(lang:json).
+     ~~ Sections have a `project_id`(lang:json).
+     ~~ The `title`(lang:norg) of the heading is the `name`(lang:todoist) of the project.
+     ~ Todo items are defined on a structural element with the task modifier extension.
+     ~~ The `title`(lang:norg) of the element is the `content`(lang:todoist) of the todoist task.
+     ~~ Due date and 
+     ~~ The `description`(lang:todoist) is the `paragraph`(lang:norg) after the title paragraph segment.
+
+** Grand Order
+      The goal is to visualize the links between all tasks as a knotted tree.
+      I will probably need to use one of python's nextwork modules (networkx probably) to ensure the total network is directional, or causative. (acyclic digraph)
+*** Implementatation
+**** Todoist complications:
+     Todoist's natural order for tags is in this [document]{https://todoist.com/help/articles/how-are-tasks-sorted}.
+***** Todoist's Ordering:
+      - Label order: Priority > duetime and date (tasks with due time / date will always be listed before those without) > project order > task order.
+        So, if we have only one project, and no due dates, it's priority and task order.
+      - Filter order:
+      -- If query doesn't have due dates:
+         Priority > due time and date > project order > task order within project.
+      -- If query includes due dates:
+         Priority > due time > project order > task order within project > project ID > task ID.
+
+
+** Autocontext.
+   Although it would be better to do something more neorg compatible, it was driving me crazy.
+   For now we will simple wrap the context identifier in square brackets `[`, as an indicator that it's the text in front of the link to the supertask.
+
+
+
+
