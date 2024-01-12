@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "circle-cal"
+version = "0.1.0"
+description = ""
+authors = ["Keith W. Davis <kdavis10@nd.edu>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+plotly = "^5.18.0"
+gcsa = "^2.2.0"
+dash = "^2.14.2"
+pebble = "^5.0.6"
+rich = "^13.7.0"
+skyfield = "^1.46"
+beautiful-date = "^2.3.0"
+
+
+[tool.poetry.group.dev.dependencies]
+jupyterlab = "^4.0.10"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
