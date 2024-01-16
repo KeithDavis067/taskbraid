@@ -1,5 +1,6 @@
 import os
 from networkx import DiGraph, topological_generations
+import networkx as nx
 
 from todoist_api_python.api import TodoistAPI
 # from todoist_api.api_async import TodoistAPIAsync
@@ -7,30 +8,34 @@ import typer
 from typing_extensions import Annotated
 from rich import print
 from rich.tree import Tree
-from dataclasses import asdict
 
 app = typer.Typer(chain=True)
 state = {"api": None}
 
-__all__ = ["ThrottledApi", "throttle_requests",
-           "tdobj_to_node", "tditer_to_graph"]
+__all__ = ["ThrottledApi",
+           "tdobj_to_node_and_edges", "tditer_to_graph"]
+
 
 REQUEST_LIMIT = 450 / (15 * 60)  # 450 requests per 15 minutes.
 
 
+def throttle_requests():
+    raise NotImplementedError()
+
+
 class ThrottledApi(TodoistAPI):
-    @classmethod
+    @ classmethod
     def wrap_api_calls(cls):
         for method in [getattr(super(), m) for m in dir(super())
                        if not m.startswith("__") and
                        callable(getattr(super(), m))]:
             setattr(cls, throttle_requests(method))
 
-    @property
+    @ property
     def rql(self):
         return self.request_limit
 
-    @rql.setter
+    @ rql.setter
     def rql(self, value):
         self.request_limit = value
 
@@ -114,26 +119,20 @@ def startup():
     return api
 
 
-def tdobj_to_node(tdobj, parent_attr_list=["parent_id", "project_id"]):
+def tdobj_to_node_and_edges(tdobj, parent_attr_list=["parent_id", "project_id"]):
     """ Return a node and edges suitable for adding to a graph.
 
     tdobj: an todoist object, or an object with an `id` attribute
-        suitable as a nx.DiGraph node, and at least one of `parent_attr_list`
+        suitable as a nx.DiGraph node
         holding a node id to point to.
-            Example: {"id": 123, "parent_id": 321}
-    parent_attr_list: list of object attributes that may hold a parent node.
+    parent_attr_list: list of object attributes to use as edge enpoints.
 
     Returns:
-        A tuple of the id and id data suitable for adding to a graph, and a
-        dict mapping `parent_attr_list` to the edge data. Edge endpoints of
-        None are not returned.
+        A tuple of the id and data suitable for adding to a graph, and a
+        dict mapping `parent_attr_list` to the edge data. The function adding
+        the returned to a DiGraph should create a list of edges from the edge dict.
     """
-    try:
-        nd = asdict(tdobj)
-    except TypeError as e:
-        raise TypeError(f"asdict failed on {type(tdobj)}") from e
-
-    nd["obj"] = tdobj
+    node = tdobj.id
     edges = {}
     for attr in parent_attr_list:
         try:
@@ -143,32 +142,28 @@ def tdobj_to_node(tdobj, parent_attr_list=["parent_id", "project_id"]):
 
         except AttributeError:
             pass
-    return (nd["id"], nd), edges
+    return (node, dict(obj=tdobj)), edges
 
 
 def test_tdobj_to_node():
-    obj = {"name": "tester",
-           "id": 123,
-           "parent_id": 321}
-    assert tdobj_to_node(obj) == ((obj.id, obj),
-                                  {"parent_id": (obj.id, obj.parent_id)})
-    del obj["parent_id"]
-    obj["project_id"] = 321
-    assert tdobj_to_node(obj) == ((obj.id, obj),
-                                  {"project_id": (obj.id, obj.project_id)})
-    del obj["parent_id"]
-    assert tdobj_to_node(obj) == ((obj.id, obj),
-                                  {})
+    class Test:
+        pass
 
-    obj = {"name": "tester",
-           "id": 123,
-           "parent_id": 321,
-           "project_id": 213}
-    assert tdobj_to_node(obj) == ((obj.id, obj),
-                                  {"project_id": (obj.id, obj.project_id),
-                                   "parent_id": (obj.id, obj.parent_id),
-                                   }
-                                  )
+    t = Test()
+    t.id = "123"
+    t.parent_id = "321"
+    t.name = "tester"
+
+    assert tdobj_to_node_and_edges(t) == ((t.id,
+                                          {"obj": t}),
+                                          {"parent_id": (t.id, t.parent_id)})
+
+    t.project_id = "132"
+
+    assert tdobj_to_node_and_edges(t) == ((t.id,
+                                          {"obj": t}),
+                                          {"parent_id": (t.id, t.parent_id),
+                                           "project_id": (t.id, t.project_id)})
 
 
 def tditer_to_graph(tditer,
@@ -190,11 +185,11 @@ def tditer_to_graph(tditer,
     """
     if g is None:
         g = nx.DiGraph()
-    ndicts = {}
     for obj in tditer:
-        nd, edges = tdobj_to_node(obj, parent_attr_list=parent_attr_list)
-        node, node_dict = nd
-        g.add_node(node, **node_dict)
+        nd, edges = tdobj_to_node_and_edges(
+            obj, parent_attr_list=parent_attr_list)
+        node, obj = nd
+        g.add_node(node, obj=obj)
 
         for attr in parent_attr_list:
             try:
@@ -202,8 +197,6 @@ def tditer_to_graph(tditer,
             except KeyError:
                 pass
 
-    # g.add_nodes_from(ndicts.items())
-    # g.add_edges_from(edges)
     return g
 
 
