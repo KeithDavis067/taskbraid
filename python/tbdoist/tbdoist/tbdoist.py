@@ -8,12 +8,15 @@ import typer
 from typing_extensions import Annotated
 from rich import print
 from rich.tree import Tree
+from modify import manage_supertask_link, manage_supertask_links
+
 
 app = typer.Typer(chain=True)
 state = {"api": None}
 
 __all__ = ["ThrottledApi",
-           "tdobj_to_node_and_edges", "tditer_to_graph"]
+           "tdobj_to_node_and_edges", "tditer_to_graph",
+           "manage_supertask_link", "manage_supertask_links"]
 
 
 REQUEST_LIMIT = 450 / (15 * 60)  # 450 requests per 15 minutes.
@@ -171,7 +174,8 @@ def tditer_to_graph(tditer,
                     g=None):
     """ Return a graph from an iterable.
 
-    Accepts an iterable of objects with at least an id attribute to be used as a node
+    Accepts an iterable of objects with at least
+    an id attribute to be used as a node
     and one attribute named in `parent_attr_list`, as a node to point to.
 
     tditer: iterable of todoist objects.
