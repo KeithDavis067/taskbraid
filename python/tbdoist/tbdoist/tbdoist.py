@@ -138,7 +138,7 @@ def tdobj_to_node_and_edges(tdobj, parent_attr_list=["parent_id", "project_id"])
         try:
             # Parent ID can be None, not a valid edge.
             if getattr(tdobj, attr) is not None:
-                edges[attr] = (tdobj.id, getattr(tdobj, attr))
+                edges[attr] = (node, getattr(tdobj, attr))
 
         except AttributeError:
             pass
@@ -186,14 +186,14 @@ def tditer_to_graph(tditer,
     if g is None:
         g = nx.DiGraph()
     for obj in tditer:
-        nd, edges = tdobj_to_node_and_edges(
+        nodetuple, edges = tdobj_to_node_and_edges(
             obj, parent_attr_list=parent_attr_list)
-        node, obj = nd
-        g.add_node(node, obj=obj)
+        node, obj = nodetuple
+        g.add_node(node, **obj)
 
         for attr in parent_attr_list:
             try:
-                g.add_edge(node, edges[attr][1])
+                g.add_edge(*edges[attr])
             except KeyError:
                 pass
 
