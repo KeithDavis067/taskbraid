@@ -4,7 +4,7 @@ from requests.exceptions import HTTPError
 __all__ = ["manage_supertask_links", "manage_supertask_link"]
 
 
-def manage_supertask_link(tdapi, task):
+def manage_supertask_link(tdapi, task, update=True):
     divider = " :: "
     try:
         oc = task.content
@@ -31,16 +31,51 @@ def manage_supertask_link(tdapi, task):
             newc = oc.split(divider)[1]
 
     if newc is not None:
-        result = tdapi.update_task(task.id, content=newc)
+        if update:
+            result = tdapi.update_task(task.id, content=newc)
+        else:
+            result = {"content": newc}
     else:
         result = None
     return result
 
 
 def manage_supertask_links(tdapi, *args, **kwargs):
-    tasks = tdapi.get_tasks(*args, **kwargs)
+    # If first arg is set if may be ids or tasks.
+    if len(args) > 0:
+        tasksarg = args[0]
+        args = args[1:]
+
+    # If tasks kwarg is set it may be tasks or ids.
+    if "tasks" in kwargs:
+        tasksarg = kwargs["tasks"]
+        del tasksarg["tasks"]
+
+    # Try to extract ids.
+    try:
+        try:
+            ids = [task.id for task in tasksarg]
+        except AttributeError:
+            ids = tasksarg
+    except NameError:
+        pass
+
+    # Extract update for passing to manage_supertask_link.
+    if "update" in kwargs:
+        update = kwargs["update"]
+        del kwargs["update"]
+    else:
+        update = True
+
+    results = []
+    try:
+        tasks = tdapi.get_tasks(*args, ids=ids, **kwargs)
+    except NameError:
+        tasks = tdapi.get_tasks(*args, **kwargs)
     for task in tasks:
-        manage_supertask_link(tdapi, task)
+        result = manage_supertask_link(tdapi, task, update=update)
+        results.append(result)
+    return results
 
 
 if __name__ == "__main__":
