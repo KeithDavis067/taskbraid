@@ -9,6 +9,7 @@ from typing_extensions import Annotated
 from rich import print
 from rich.tree import Tree
 from modify import manage_supertask_link, manage_supertask_links
+import nxutils as nxu
 
 
 app = typer.Typer(chain=True)
@@ -122,86 +123,32 @@ def startup():
     return api
 
 
-def tdobj_to_node_and_edges(tdobj, parent_attr_list=["parent_id", "project_id"]):
-    """ Return a node and edges suitable for adding to a graph.
+def tdobj_to_node_and_edges(tdobj,
+                            parent_attr_list=["parent_id",
+                                              "project_id",
+                                              "section_id"],
+                            edge_attr_func=lambda obj: type(obj).__name__,
+                            **kwargs):
+    """ A wrapper around nxutils.obj_to_node_and_edges to set todist defaults."""
 
-    tdobj: an todoist object, or an object with an `id` attribute
-        suitable as a nx.DiGraph node
-        holding a node id to point to.
-    parent_attr_list: list of object attributes to use as edge enpoints.
-
-    Returns:
-        A tuple of the id and data suitable for adding to a graph, and a
-        dict mapping `parent_attr_list` to the edge data. The function adding
-        the returned to a DiGraph should create a list of edges from the edge dict.
-    """
-    node = tdobj.id
-    edges = {}
-    for attr in parent_attr_list:
-        try:
-            # Parent ID can be None, not a valid edge.
-            if getattr(tdobj, attr) is not None:
-                edges[attr] = (node, getattr(tdobj, attr))
-
-        except AttributeError:
-            pass
-    return (node, dict(obj=tdobj)), edges
+    return nxu.obj_to_node_and_edges(tdobj, "id",
+                                     parent_attr_list,
+                                     edge_attr_func, **kwargs)
 
 
-def test_tdobj_to_node():
-    class Test:
-        pass
-
-    t = Test()
-    t.id = "123"
-    t.parent_id = "321"
-    t.name = "tester"
-
-    assert tdobj_to_node_and_edges(t) == ((t.id,
-                                          {"obj": t}),
-                                          {"parent_id": (t.id, t.parent_id)})
-
-    t.project_id = "132"
-
-    assert tdobj_to_node_and_edges(t) == ((t.id,
-                                          {"obj": t}),
-                                          {"parent_id": (t.id, t.parent_id),
-                                           "project_id": (t.id, t.project_id)})
-
-
-def tditer_to_graph(tditer,
-                    parent_attr_list=["parent_id", "project_id"],
-                    g=None):
-    """ Return a graph from an iterable.
-
-    Accepts an iterable of objects with at least
-    an id attribute to be used as a node
-    and one attribute named in `parent_attr_list`, as a node to point to.
-
-    tditer: iterable of todoist objects.
-    parent_attr_list: list of object attributes that may hold parent node.
-        If multiple attributes have values, only the first is used.
-        (This is to keep subtasks from pointing to their project
-        and parent task.)
-    g: an nx.DiGraph to which the `tditer` objects are added.
-
-    Returns: A DiGraph of objects in `tditer`.
-    """
+def tditer_to_graph(tditer, g=None, ):
     if g is None:
         g = nx.DiGraph()
-    for obj in tditer:
-        nodetuple, edges = tdobj_to_node_and_edges(
-            obj, parent_attr_list=parent_attr_list)
-        node, obj = nodetuple
-        g.add_node(node, **obj)
+    nodebunch = []
+    edgebunch = []
+    for ele in tditer:
+        node, edges = tdobj_to_node_and_edges(ele)
+        print(edges)
+        nodebunch.append(node)
+        edgebunch.append(edges)
 
-        for attr in parent_attr_list:
-            try:
-                g.add_edge(*edges[attr])
-            except KeyError:
-                pass
-
-    return g
+    g.add_nodes_from(nodebunch)
+    g.add_edges_from(edgebunch)
 
 
 if __name__ == "__main__":
