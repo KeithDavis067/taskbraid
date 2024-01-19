@@ -3,6 +3,7 @@ from networkx import DiGraph, topological_generations
 import networkx as nx
 
 from todoist_api_python.api import TodoistAPI
+from todoist_api_python.models import Task, Project, Section
 # from todoist_api.api_async import TodoistAPIAsync
 import typer
 from typing_extensions import Annotated
@@ -127,13 +128,14 @@ def tdobj_to_node_and_edges(tdobj,
                             parent_attr_list=["parent_id",
                                               "project_id",
                                               "section_id"],
-                            edge_attr_func=lambda obj: type(obj).__name__,
+                            edge_attr_func=lambda obj: {
+                                "type": type(obj).__name__},
                             **kwargs):
     """ A wrapper around nxutils.obj_to_node_and_edges to set todist defaults."""
 
     return nxu.obj_to_node_and_edges(tdobj, "id",
                                      parent_attr_list,
-                                     edge_attr_func, **kwargs)
+                                     edge_attr_func=edge_attr_func, **kwargs)
 
 
 def tditer_to_graph(tditer, g=None, **kwargs):
@@ -148,6 +150,61 @@ def tditer_to_graph(tditer, g=None, **kwargs):
 
     g.add_nodes_from(nodebunch)
     g.add_edges_from(edgebunch)
+
+
+def is_subtask(obj):
+    if not isinstance(obj, Task):
+        return False
+    try:
+        if obj.parent_id is not None:
+            return True
+    except AttributeError:
+        pass
+    return False
+
+
+def is_in_section(obj):
+    try:
+        if obj.section_id is not None:
+            return True
+    except AttributeError:
+        pass
+    return False
+
+
+def _richTree_filter_factory(g):
+    def filter(u, v):
+        obj = g.nodes[u]["obj"]
+        parent_obj = g.nodes[v]["obj"]
+
+        if isinstance(obj, Task):
+            if is_subtask(obj):
+                if isinstance(parent_obj, Task):
+                    return True
+                else:
+                    return False
+            else:
+                if is_in_section(obj):
+                    if isinstance(parent_obj, Section):
+                        return True
+                    else:
+                        return False
+                else:
+                    if isinstance(parent_obj, Project):
+                        return True
+                    else:
+                        return False
+
+        return True
+
+    return filter
+
+
+def td_diGraph_to_richTree(g, **kwargs):
+    # The filter needs the non-reversed view, but diGraph_to_richTree needs the reveersed view.
+    return nxu.diGraph_to_richTree(
+        nx.reverse_view(
+            nx.subgraph_view(g, filter_edge=_richTree_filter_factory(g)), **kwargs))
 
 
 if __name__ == "__main__":
