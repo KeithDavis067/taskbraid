@@ -136,16 +136,15 @@ def tdobj_to_node_and_edges(tdobj,
                                      edge_attr_func, **kwargs)
 
 
-def tditer_to_graph(tditer, g=None, ):
+def tditer_to_graph(tditer, g=None, **kwargs):
     if g is None:
         g = nx.DiGraph()
     nodebunch = []
     edgebunch = []
     for ele in tditer:
-        node, edges = tdobj_to_node_and_edges(ele)
-        print(edges)
+        node, edges = tdobj_to_node_and_edges(ele, **kwargs)
         nodebunch.append(node)
-        edgebunch.append(edges)
+        edgebunch += edges
 
     g.add_nodes_from(nodebunch)
     g.add_edges_from(edgebunch)
