@@ -200,11 +200,23 @@ def _richTree_filter_factory(g):
     return filter
 
 
+def tdgraph_label_func(g, n):
+    for attr in ["content", "name"]:
+        try:
+            return getattr(g.nodes[n], attr)
+        except AttributeError:
+            return getattr(g.nodes[n]["obj"], attr)
+
+    return str(g.nodes[n])
+
+
 def td_diGraph_to_richTree(g, **kwargs):
-    # The filter needs the non-reversed view, but diGraph_to_richTree needs the reveersed view.
-    return nxu.diGraph_to_richTree(
-        nx.reverse_view(
-            nx.subgraph_view(g, filter_edge=_richTree_filter_factory(g)), **kwargs))
+    # The filter needs the non-reversed view,
+    # but diGraph_to_richTree needs the reversed view.
+
+    sg = nx.subgraph_view(g, filter_edge=_richTree_filter_factory(g))
+    rev = nx.reverse_view(sg, **kwargs)
+    return nxu.diGraph_to_richTree(rev, label_func=tdobj_to_label)
 
 
 if __name__ == "__main__":
