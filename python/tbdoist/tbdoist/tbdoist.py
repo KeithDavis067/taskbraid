@@ -17,7 +17,7 @@ app = typer.Typer(chain=True)
 state = {"api": None}
 
 __all__ = ["ThrottledApi",
-           "tdobj_to_node_and_edges", "tditer_to_graph",
+           "td_obj_to_node_and_edges", "td_iter_to_graph",
            "manage_supertask_link", "manage_supertask_links"]
 
 
@@ -124,13 +124,13 @@ def startup():
     return api
 
 
-def tdobj_to_node_and_edges(tdobj,
-                            parent_attr_list=["parent_id",
-                                              "project_id",
-                                              "section_id"],
-                            edge_attr_func=lambda obj: {
-                                "type": type(obj).__name__},
-                            **kwargs):
+def td_obj_to_node_and_edges(tdobj,
+                             parent_attr_list=["parent_id",
+                                               "project_id",
+                                               "section_id"],
+                             edge_attr_func=lambda obj: {
+                                 "type": type(obj).__name__},
+                             **kwargs):
     """ A wrapper around nxutils.obj_to_node_and_edges to set todist defaults."""
 
     return nxu.obj_to_node_and_edges(tdobj, "id",
@@ -138,13 +138,13 @@ def tdobj_to_node_and_edges(tdobj,
                                      edge_attr_func=edge_attr_func, **kwargs)
 
 
-def tditer_to_graph(tditer, g=None, **kwargs):
+def td_iter_to_graph(td_iter, g=None, **kwargs):
     if g is None:
         g = nx.DiGraph()
     nodebunch = []
     edgebunch = []
-    for ele in tditer:
-        node, edges = tdobj_to_node_and_edges(ele, **kwargs)
+    for ele in td_iter:
+        node, edges = td_obj_to_node_and_edges(ele, **kwargs)
         nodebunch.append(node)
         edgebunch += edges
 
@@ -172,7 +172,7 @@ def is_in_section(obj):
     return False
 
 
-def _richTree_filter_factory(g):
+def td_g_filter_factory(g):
     def filter(u, v):
         obj = g.nodes[u]["obj"]
         parent_obj = g.nodes[v]["obj"]
@@ -200,12 +200,15 @@ def _richTree_filter_factory(g):
     return filter
 
 
-def tdgraph_label_func(g, n):
+def td_g_label_func(g, n):
     for attr in ["content", "name"]:
         try:
-            return getattr(g.nodes[n], attr)
+            try:
+                return getattr(g.nodes[n], attr)
+            except AttributeError:
+                return getattr(g.nodes[n]["obj"], attr)
         except AttributeError:
-            return getattr(g.nodes[n]["obj"], attr)
+            continue
 
     return str(g.nodes[n])
 
@@ -214,9 +217,9 @@ def td_diGraph_to_richTree(g, **kwargs):
     # The filter needs the non-reversed view,
     # but diGraph_to_richTree needs the reversed view.
 
-    sg = nx.subgraph_view(g, filter_edge=_richTree_filter_factory(g))
+    sg = nx.subgraph_view(g, filter_edge=td_g_filter_factory(g))
     rev = nx.reverse_view(sg, **kwargs)
-    return nxu.diGraph_to_richTree(rev, label_func=tdobj_to_label)
+    return nxu.diGraph_to_richTree(rev, label_func=td_g_label_func)
 
 
 if __name__ == "__main__":
