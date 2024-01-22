@@ -58,7 +58,7 @@ def manage_supertask_link(tdapi, task, update=True):
         if update:
             result = tdapi.update_task(task.id, content=newc)
         else:
-            result = {id: task.id, "content": newc}
+            result = {"id": task.id, "content": newc}
     else:
         result = None
     return result
@@ -73,7 +73,7 @@ def manage_supertask_links(tdapi, *args, **kwargs):
     # If tasks kwarg is set it may be tasks or ids.
     if "tasks" in kwargs:
         tasksarg = kwargs["tasks"]
-        del tasksarg["tasks"]
+        del kwargs["tasks"]
 
     # Try to extract ids.
     try:
