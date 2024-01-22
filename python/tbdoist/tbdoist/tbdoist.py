@@ -180,6 +180,8 @@ def _richTree_filter_factory(g):
         if isinstance(obj, Task):
             if is_subtask(obj):
                 if isinstance(parent_obj, Task):
+                    print(
+                        f"keeping subtask {obj.content} of supertask {parent_obj.content}")
                     return True
                 else:
                     return False
