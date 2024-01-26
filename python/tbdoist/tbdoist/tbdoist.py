@@ -24,7 +24,33 @@ __all__ = ["ThrottledApi",
 
 REQUEST_LIMIT = 450 / (15 * 60)  # 450 requests per 15 minutes.
 
-ids = ["parent_id", "project_id", "section_id"]
+TYPE_MAP = {Project: {"id": "project_id",
+                      "getter": "get_project",
+                      "getser": "get_projects"},
+            Task: {"id": "task_id",
+                   "getter": "get_task",
+                   "getser": "get_tasks"},
+            Section: {"id": "section_id",
+                      "getter": "get_section",
+                      "getser": "get_sections"},
+            }
+
+# TODO: Write a tool to build smaller parts of the graph from tdapi.
+
+
+def build_local_graph(tdapi, obj):
+    try:
+        tmap = TYPE_MAP[type(obj)]
+    except KeyError:
+        raise f"Cannot build todoist_api map from type {type(obj)}."
+
+    obj_id = obj.id
+
+    succ = []
+    id_attr = TYPE_MAP[type(obj)]["id"]
+    for td_type in TYPE_MAP:
+        try:
+            hold = get
 
 
 def throttle_requests():
