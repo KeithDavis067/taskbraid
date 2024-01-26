@@ -1,4 +1,5 @@
 from requests.exceptions import HTTPError
+from .tbdoist import TYPE_MAP
 import pytest
 
 
@@ -62,6 +63,16 @@ def manage_supertask_link(tdapi, task, update=True):
     else:
         result = None
     return result
+
+
+def _path_to_root(tdapi, obj):
+    # TODO: writh _path_to_root
+    raise NotImplementedError
+
+
+def _obj_parents_string(tdapi, obj, g=None):
+    # TODO: Write this to buld the string from a path.
+    raise NotImplementedError
 
 
 def manage_supertask_links(tdapi, *args, **kwargs):
