@@ -51,7 +51,7 @@ class Year_Data:
         self.date = date
 
     def first_day(self):
-        return datetime(self._year, 1, 1)
+        return datetime(self.year, 1, 1)
 
     def last_day(self):
         return datetime(self.year, 12, 31)
