@@ -50,14 +50,15 @@ class Year_Data:
             date = datetime(self.year, 1, 1)
         self.date = date
 
-    def first_day(self):
+    def begin(self):
         return datetime(self.year, 1, 1)
 
-    def last_day(self):
-        return datetime(self.year, 12, 31)
+    def end(self):
+        """ Return a dateime for the first day of the next year minus 1 microsecond""".
+        return datetime(self.year+1, 1, 1) - timedelta(microseconds=1)
 
     def length(self):
-        return self.last_day() - self.first_day() + timedelta(1)
+        return self.last_datetime() - self.first_datetime()
 
     def weekday(self, n=None):
         if n is None:
@@ -65,11 +66,13 @@ class Year_Data:
         else:
             return self.weekday_from_int(n)
 
-    def get_year(self):
-        return self.year()
+    def number_to_dt(self, n):
+        """ Accept an integer number of days (Jan 1 = 0) and return a datetime object."""
+        return self.first_datetime + timedelta(n)
 
-    def date_from_int(self, n):
-        return self.first_day() + timedelta(n)
+    def date_to_number(self, d):
+        try:
+            d - self.first_datetime
 
     def int_from_date(self, d=None):
         if d is None:
