@@ -71,6 +71,15 @@ class Year_Data:
     def date_from_int(self, n):
         return self.first_day() + timedelta(n)
 
+    def int_from_date(self, d=None):
+        if d is None:
+            d = self.date
+
+        try:
+            return (d - self.first_day().date()).days
+        except TypeError:
+            return (d.date() - self.first_day().date()).days
+
     def weekday_from_int(self, n):
         return self.date_from_int(n).weekday()
 
