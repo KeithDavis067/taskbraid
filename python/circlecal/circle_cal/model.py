@@ -1,5 +1,6 @@
 import calendar
 from datetime import datetime, timedelta
+from dateutil.parser import parse
 from calendar import monthrange, month_name, day_name
 try:
     import pandas as pd
@@ -8,9 +9,30 @@ except ImportError:
 
 # TODO: Add event class. Recase Year_Data as and "event" class and add make
 # Year_Data a subclass.
+#
+
+
+def _expanded_parser(obj):
+    """ Reusable function to allow passing dt objects or parseable strings."""
+    try:
+        obj.date()
+        obj.year
+        obj.day
+        obj.month
+        result = obj
+    except AttributeError:
+        result = parse(obj, fuzzy=True)
+    return result
 
 
 class Event:
+    @property
+    def start(self):
+        return self._start
+
+    @start.setter
+    def start(self, obj):
+        self._start = _expanded_parser(obj)
 
 
 class Year_Data:
