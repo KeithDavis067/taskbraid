@@ -33,8 +33,7 @@ class Year_Data:
     @date.setter
     def date(self, date):
         if date.year != self.year:
-            raise ValueError(
-                f"Cannot set a date with year outside of instance year.")
+            raise ValueError(f"Date: {date} is outside instance year.")
         self._date = date
 
     @date.deleter
@@ -50,37 +49,35 @@ class Year_Data:
             date = datetime(self.year, 1, 1)
         self.date = date
 
-    def begin(self):
+    def start(self):
         return datetime(self.year, 1, 1)
 
     def end(self):
         """ Return a dateime for just before midnight on the last day."""
-    return datetime(self.year+1, 1, 1) - timedelta(microseconds=1)
+        return datetime(self.year+1, 1, 1) - timedelta(microseconds=1)
 
     def length(self):
-        return self.last_datetime() - self.first_datetime()
+        """ Return the length of the calendar year in days."""
+        return datetime(self.year+1, 1, 1) - self.start()
 
     def weekday(self, n=None):
         if n is None:
             return self.date.weekday()
         else:
-            return self.weekday_from_int(n)
+            return self.number_as_date(n).weekday()
 
-    def number_as_date(self, n):
+    def number_as_date(self, n, unit="days"):
         """ Return the date from an integer (Jan 1 = 0)."""
-        return self.first_datetime + timedelta(n)
+        return self.start() + timedelta(days=n)
 
     def date_as_number(self, d=None):
         if d is None:
             d = self.date
 
         try:
-            return (d - self.begin().date()).days
+            return (d - self.start().date()).days
         except TypeError:
-            return (d.date() - self.begin().date()).days
-
-    def weekday_from_int(self, n):
-        return self.date_from_int(n).weekday()
+            return (d.date() - self.start().date()).days
 
     def monthrange(self, month=None):
         if month is None:
@@ -90,23 +87,35 @@ class Year_Data:
     def iterdates(self, start=0, end=None):
 
         if end is None:
-            end = self.last_day()
+            end = datetime(self.year + 1, 1, 1)
 
         day = timedelta(1)
         # If start is an int, create a date from it.
         try:
-            start = self.date_from_int(start)
-        except TypeError as e:
+            start = self.number_as_date(start)
+        except TypeError:
             # If not an int, it may be datetime.
             pass
         try:
-            if not (self.first_day() <= start <= self.last_day()):
+            if not (self.start() <= start < end):
                 raise ValueError(f"start must be in {self._year}")
         except TypeError as e:
-            raise TypeError("start must be an integer or datetime.") from e
-        while self.first_day() <= start <= self.last_day():
+            if not (self.start().date() <= start.date() < end.date()):
+                raise TypeError(
+                    "start must be a number, datetime.datime, "
+                    "or datetime.date instance.") from e
+        while start in self:
             yield start
             start += day
+
+    def __contains__(self, value):
+        try:
+            return self.start() <= value < datetime(self.year+1, 1, 1)
+        except TypeError:
+            try:
+                return self.start().date() <= value < datetime(self.year+1, 1, 1).date()
+            except TypeError:
+                return self.start() <= self.number_as_date(value) <= datetime(self.year+1, 1, 1)
 
     def to_dict(self):
         columns = ["date", "year", "month", "month_str",
@@ -137,5 +146,4 @@ class Year_Data:
             raise ModuleNotFoundError("pandas is not installed.")
 
     def __len__(self):
-
         return self.length().days
