@@ -6,6 +6,12 @@ try:
 except ImportError:
     pass
 
+# TODO: Add event class. Recase Year_Data as and "event" class and add make
+# Year_Data a subclass.
+
+
+class Event:
+
 
 class Year_Data:
 
