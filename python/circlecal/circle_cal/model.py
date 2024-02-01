@@ -12,36 +12,148 @@ except ImportError:
 #
 
 
-def _expanded_parser(obj):
+def _quacks_like_a_dt(obj):
     """ Reusable function to allow passing dt objects or parseable strings."""
     try:
         obj.date()
         obj.year
         obj.day
         obj.month
-        result = obj
     except AttributeError:
-        result = parse(obj, fuzzy=True)
-    return result
+        return False
+    return True
+
+
+def _quacks_like_a_date(obj):
+    try:
+        obj.year
+        obj.day
+        obj.month
+    except AttributeError:
+        return False
+    try:
+        obj.date()
+        return False
+    except AttributeError:
+        pass
+    return True
+
+
+def _date_or_dt(obj):
+    if _quacks_like_a_date(obj):
+        return "date"
+
+    if _quacks_like_a_dt(obj):
+        return "dt"
+    raise TypeError(f"{obj} is used as a date but does not quack like one.")
+
+
+def _date_contains(start, test, end):
+    # My insistence on duck-typing might be pathological.
+    pattern = [_date_or_dt(start), _date_or_dt(test), _date_or_dt(end)]
+    match pattern:
+        case ["dt", "dt", "dt"] | ["date", "date", "date"]:
+            return start <= test < end
+        case _:
+            for obj in ["start", "test", "end"]:
+                try:
+                    eval(f"{obj} = {obj}.date()")
+                except AttributeError:
+                    pass
+    return start <= test < end
+
+
+def _date_setter(obj, value, attr="date"):
+    # _date_or_dt will raise error if neither.
+    kind = _date_or_dt(obj)
+    match kind:
+        case "date":
+            setattr(obj, attr, value)
+        case "dt":
+            # To mathc gcsa implementation, set as date if time is
+            # exactly zero.
+            # This might trash timezone data on dates, so if
+            # not local tz we might
+            # leave time, but I need to read more about tzinfo first.
+            if (dt.hours,
+                dt.minutes,
+                dt.seconds,
+                    dt.microseconds) == (0, 0, 0, 0):
+                setattr(obj, attr, value.date())
+            else:
+                setattr(obj, attr, value)
+
+
+def _validate_date_input(value, start=None, end=None, inc="days"):
+    """ Verifies a value as a date or integer with increment.
+
+    If start and end are passed, verified that value is within the range
+    [start, end). If one but not both are None, only compare to set value(s).
+    If value is inc, then `start` must be set. The date returned will be 
+    a number of `inc` increments added to `start`.
+
+    No attempt is made to similarly coerce start/end to dates.
+
+    """
+    out_of_range = "{date} is in not given range: {start} to {end}"
+    try:
+        kind = _date_or_dt(value)
+        date = value
+    except TypeError:
+        if inc in [days, seconds, microseconds,
+                   milliseconds, minutes, hours, weeks]:
+            kwarg = {inc: value}
+            date = start + timedelta(**kwarg)
+        raise ValueError(f"{value} is not a date and cannot be "
+                         "coerced to a date with given parameters.")
+
+    if start is not None:
+        if not start <= date:
+            raise outofrange.format(**locals())
+
+    if end is not None:
+        if not date < end:
+            raise outofrange.format(**locals())
+    return date
 
 
 class Event:
-    @property
+    """
+    Implementation Note: gcsa module gets events from gcal with the start date as expected
+    and the end as the moment the event ends. So, a single date events starts on the day it
+    starts and ends the next day. Also, events without times are stored as datetime.dates, while
+    events with a time are stored as datetime.datetime objects.
+
+    We will adopt this structure for simplicity's sake. This matters mostly for the __contains__
+    function. That will be implemented so that it returns True if event.start <= datetime < event.end.
+    This means for an event that lasts one day, the next date will not return True, but one microsecond
+    before. A meeting event that lasts from 10:00 AM to 11:00 AM will return False on the call:
+        `11:00 AM in event`.
+    """
+    @ property
     def start(self):
         return self._start
 
-    @start.setter
-    def start(self, obj):
-        self._start = _expanded_parser(obj)
+    @ start.setter
+    def start(self, value):
+        _date_setter(obj, value, "start")
+
+    @ property
+    def end(self):
+        return self._end
+
+    @ end.setter
+    def start(self, value):
+        _date_setter(obj, value, "end")
 
 
-class Year_Data:
+class Year_Data():
 
-    @property
+    @ property
     def year(self):
         return self._year
 
-    @year.setter
+    @ year.setter
     def year(self, year):
         try:
             if self.date.year != year:
@@ -52,21 +164,27 @@ class Year_Data:
 
         self._year = year
 
-    @property
+    @ property
     def date(self):
         if self._date is None:
             return datetime.date(self.year, 1, 1)
         return self._date
 
-    @date.setter
+    @ date.setter
     def date(self, date):
-        if date.year != self.year:
-            raise ValueError(f"Date: {date} is outside instance year.")
-        self._date = date
+        _date_setter(self, date, "date")
 
-    @date.deleter
+    @ date.deleter
     def date(self):
         self._date = None
+
+    @ property
+    def start(self):
+        return date(self.year, 1, 1)
+
+    @property
+    def end(self):
+        return date(self.year + 1, 1, 1)
 
     def __init__(self, year=None, date=None):
         if year is None:
@@ -77,16 +195,9 @@ class Year_Data:
             date = datetime(self.year, 1, 1)
         self.date = date
 
-    def start(self):
-        return datetime(self.year, 1, 1)
-
-    def end(self):
-        """ Return a dateime for just before midnight on the last day."""
-        return datetime(self.year+1, 1, 1) - timedelta(microseconds=1)
-
     def length(self):
         """ Return the length of the calendar year in days."""
-        return datetime(self.year+1, 1, 1) - self.start()
+        return (self.end - self.start).days
 
     def weekday(self, n=None):
         if n is None:
@@ -115,9 +226,13 @@ class Year_Data:
     def iterdates(self, start=0, end=None):
 
         if end is None:
-            end = datetime(self.year + 1, 1, 1)
+            end = self.end
 
-        day = timedelta(1)
+        if end not in self:
+            if end != self.end:
+                raise (
+                    ValueError, f"{end} is not in calendar year {self.year}.")
+
         # If start is an int, create a date from it.
         try:
             start = self.number_as_date(start)
@@ -125,13 +240,13 @@ class Year_Data:
             # If not an int, it may be datetime.
             pass
         try:
-            if not (self.start() <= start < end):
-                raise ValueError(f"start must be in {self._year}")
+            if not _date_contains(self.start, start, end):
+                raise ValueError(
+                    f"{start} is not in calendar year {self.year}.")
         except TypeError as e:
             if not (self.start().date() <= start.date() < end.date()):
                 raise TypeError(
-                    "start must be a number, datetime.datime, "
-                    "or datetime.date instance.") from e
+                    "start must be a number, or quack like a date or datetime.")
         while start in self:
             yield start
             start += day
