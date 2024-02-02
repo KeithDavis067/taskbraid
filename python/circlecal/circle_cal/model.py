@@ -1,5 +1,5 @@
 import calendar
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from dateutil.parser import parse
 from calendar import monthrange, month_name, day_name
 try:
@@ -19,9 +19,21 @@ def _quacks_like_a_dt(obj):
         obj.year
         obj.day
         obj.month
+        obj.minute
+        obj.second
+        obj.microsecond
     except AttributeError:
         return False
     return True
+
+
+def test_quack_like_a_dt():
+    assert _quacks_like_a_dt(datetime(2020, 1, 1))
+    assert not _quacks_like_a_dt(None)
+    assert not _quacks_like_a_dt(date(2020, 1, 1))
+    assert not _quacks_like_a_dt("2020-01-01")
+
+    assert _quacks_like_a_dt(_fakedt())
 
 
 def _quacks_like_a_date(obj):
@@ -38,6 +50,36 @@ def _quacks_like_a_date(obj):
         pass
     return True
 
+    assert _quacks_like_a_date(_fakedate())
+
+
+class _fakedt:
+    def __init__(self):
+        """ For testing only. """
+        self.year = None
+        self.day = None
+        self.month = None
+        self.minute = None
+        self.second = None
+        self.microsecond = None
+
+
+class _fakedate:
+    """ For testing only. """
+
+    def __init__(self):
+        self.year = None
+        self.day = None
+        self.month = None
+
+
+def test_quack_like_a_date():
+    assert _quacks_like_a_date(date(2020, 1, 1))
+    assert _quacks_like_a_date(datetime(2020, 1, 1).date())
+    assert not _quacks_like_a_date(None)
+    assert not _quacks_like_a_date(datetime(2020, 1, 1))
+    assert not _quacks_like_a_date("2020-01-01")
+
 
 def _date_or_dt(obj):
     if _quacks_like_a_date(obj):
@@ -46,6 +88,19 @@ def _date_or_dt(obj):
     if _quacks_like_a_dt(obj):
         return "dt"
     raise TypeError(f"{obj} is used as a date but does not quack like one.")
+
+
+def test_date_or_dt():
+    assert _date_or_dt(date(2020, 1, 1)) == "date"
+    assert _date_or_dt(datetime(2020, 1, 1)) == "dt"
+
+    assert _date_or_dt(_fakedate()) == "date"
+    assert _date_or_dt(_fakedt()) == "dt"
+
+    with pytest.raises(TypeError):
+        _date_or_dt(1)
+    with pytest.raises(TypeError):
+        _date_or_dt("2020-01-01")
 
 
 def _date_contains(start, test, end):

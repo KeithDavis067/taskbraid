@@ -19,6 +19,7 @@ pandas = "^2.2.0"
 
 [tool.poetry.group.dev.dependencies]
 jupyterlab = "^4.0.10"
+pytest = "^8.0.0"
 
 [build-system]
 requires = ["poetry-core"]
