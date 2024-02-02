@@ -28,7 +28,8 @@ def _quacks_like_a_dt(obj):
         obj.minute
         obj.second
         obj.microsecond
-    except AttributeError:
+        obj + timedelta(1)
+    except (AttributeError, TypeError):
         return False
     return True
 
@@ -47,8 +48,10 @@ def _quacks_like_a_date(obj):
         obj.year
         obj.day
         obj.month
-    except AttributeError:
+        obj + timedelta(1)
+    except (AttributeError, TypeError):
         return False
+
     try:
         obj.date()
         return False
@@ -60,14 +63,21 @@ def _quacks_like_a_date(obj):
 
 
 class _fakedt:
+    """ For testing only. """
+
     def __init__(self):
-        """ For testing only. """
         self.year = None
         self.day = None
         self.month = None
         self.minute = None
         self.second = None
         self.microsecond = None
+
+    def __radd__(self, other):
+        pass
+
+    def __add__(self, other):
+        pass
 
     def date(self):
         pass
@@ -80,6 +90,12 @@ class _fakedate:
         self.year = None
         self.day = None
         self.month = None
+
+    def __radd__(self, other):
+        pass
+
+    def __add__(self, other):
+        pass
 
 
 def test_quacks_like_a_date():
