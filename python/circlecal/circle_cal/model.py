@@ -1,5 +1,5 @@
 import calendar
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, time
 from dateutil.parser import parse
 from calendar import monthrange, month_name, day_name
 try:
@@ -24,6 +24,7 @@ def _quacks_like_a_dt(obj):
         obj.date()
         obj.year
         obj.day
+        obj.hour
         obj.month
         obj.minute
         obj.second
@@ -41,6 +42,33 @@ def test_quacks_like_a_dt():
     assert not _quacks_like_a_dt("2020-01-01")
 
     assert _quacks_like_a_dt(_fakedt())
+
+
+def _quacks_like_a_time(obj):
+    try:
+        obj.minute
+        obj.hour
+        obj.second
+        obj.microsecond
+    except AttributeError:
+        return False
+
+    try:
+        obj.day
+        obj.month
+        obj.year
+    except AttributeError:
+        pass
+    else:
+        return False
+    return True
+
+
+def test_quacks_like_a_time():
+    assert _quacks_like_a_time(time(0, 0, 0))
+    assert not _quacks_like_a_time(timedelta(days=1))
+    assert not _quacks_like_a_time(datetime.now())
+    assert not _quacks_like_a_time(date.today())
 
 
 def _quacks_like_a_date(obj):
@@ -106,13 +134,18 @@ def test_quacks_like_a_date():
     assert not _quacks_like_a_date("2020-01-01")
 
 
-def _date_or_dt(obj):
+def _chrono_kind(obj):
     if _quacks_like_a_date(obj):
         return "date"
 
     if _quacks_like_a_dt(obj):
         return "dt"
-    raise TypeError(f"{obj} is used as a date but does not quack like one.")
+
+    if _quacks_like_a_time(obj):
+        return "time"
+
+    raise TypeError(
+        f"{obj} is used as a chrono type but does not quack like one.")
 
 
 def test_date_or_dt():
@@ -128,19 +161,19 @@ def test_date_or_dt():
         _date_or_dt("2020-01-01")
 
 
-def _date_contains(start, test, end):
+def _chrono_contains(start, value, end):
     # My insistence on duck-typing might be pathological.
-    pattern = [_date_or_dt(start), _date_or_dt(test), _date_or_dt(end)]
-    match pattern:
-        case ["dt", "dt", "dt"] | ["date", "date", "date"]:
-            return start <= test < end
-        case _:
-            for obj in ["start", "test", "end"]:
-                try:
-                    eval(f"{obj} = {obj}.date()")
-                except AttributeError:
-                    pass
-    return start <= test < end
+
+    # If it works, it works.
+    try:
+        return start <= value < end
+    except TypeError:
+        pass
+
+    if _chrono_kind(value) == "time":
+        try:
+            tstart = datetime.combine(start, time(0, 0))
+        except
 
 
 def _date_setter(obj, value, attr="date"):
@@ -169,7 +202,7 @@ def _validate_date_input(value, start=None, end=None, inc="days"):
 
     If start and end are passed, verified that value is within the range
     [start, end). If one but not both are None, only compare to set value(s).
-    If value is inc, then `start` must be set. The date returned will be 
+    If value is inc, then `start` must be set. The date returned will be
     a number of `inc` increments added to `start`.
 
     No attempt is made to similarly coerce start/end to dates.
@@ -204,7 +237,7 @@ class Event:
     starts and ends the next day. Also, events without times are stored as datetime.dates, while
     events with a time are stored as datetime.datetime objects.
 
-    We will adopt this structure for simplicity's sake. This matters mostly for the __contains__
+    We will adopt this structure for simplicity's sake. This matters mostly for the __timecontains__
     function. That will be implemented so that it returns True if event.start <= datetime < event.end.
     This means for an event that lasts one day, the next date will not return True, but one microsecond
     before. A meeting event that lasts from 10:00 AM to 11:00 AM will return False on the call:
@@ -262,7 +295,7 @@ class Year_Data():
     def start(self):
         return date(self.year, 1, 1)
 
-    @property
+    @ property
     def end(self):
         return date(self.year + 1, 1, 1)
 
