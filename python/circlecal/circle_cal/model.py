@@ -7,6 +7,12 @@ try:
 except ImportError:
     pass
 
+# TODO: Figure out how to import pytest only when testing.
+try:
+    import pytest
+except ImportError:
+    pass
+
 # TODO: Add event class. Recase Year_Data as and "event" class and add make
 # Year_Data a subclass.
 #
@@ -27,7 +33,7 @@ def _quacks_like_a_dt(obj):
     return True
 
 
-def test_quack_like_a_dt():
+def test_quacks_like_a_dt():
     assert _quacks_like_a_dt(datetime(2020, 1, 1))
     assert not _quacks_like_a_dt(None)
     assert not _quacks_like_a_dt(date(2020, 1, 1))
@@ -63,6 +69,9 @@ class _fakedt:
         self.second = None
         self.microsecond = None
 
+    def date(self):
+        pass
+
 
 class _fakedate:
     """ For testing only. """
@@ -73,7 +82,7 @@ class _fakedate:
         self.month = None
 
 
-def test_quack_like_a_date():
+def test_quacks_like_a_date():
     assert _quacks_like_a_date(date(2020, 1, 1))
     assert _quacks_like_a_date(datetime(2020, 1, 1).date())
     assert not _quacks_like_a_date(None)
