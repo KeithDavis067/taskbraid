@@ -170,10 +170,30 @@ def _chrono_contains(start, value, end):
     except TypeError:
         pass
 
-    if _chrono_kind(value) == "time":
-        try:
-            tstart = datetime.combine(start, time(0, 0))
-        except
+    try:
+        sdate = start.date()
+        stime = start.time()
+    except AttributeError:
+        sdate = date
+        stime = time(0, 0)
+
+    try:
+        edate = start.date()
+        etime = start.time()
+    except AttributeError:
+        edate = date
+        etime = time(0, 0)
+
+    sdate = datetime.combine(sdate, stime)
+    edate = datetime.combine(edate, etime)
+
+    if not 0 <= (edate - sdate) < timedelta(days=1):
+
+    if sdate != edate:
+        raise ValueError(
+            "Cannot determine if time is between dates if "
+            "date difference is greater than 24 hours.")
+    if
 
 
 def _date_setter(obj, value, attr="date"):
