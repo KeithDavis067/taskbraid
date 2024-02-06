@@ -91,34 +91,69 @@ def del_end(obj):
     obj._end = None
 
 
-class CalendarUnit:
-    AbsUnits = ['day', 'hour', 'microsecond',
-                'minute', 'month', 'second', 'weekday', 'year']
+class CalendarElement:
 
-    RelUnits = [a + 's' for a in AbsUnits]
+    UnitRanges = {"year": None,
+                  "month": range(1, 13),
+                  "day": monthrange,
+                  "hour": range(0, 24),
+                  "minute": range(0, 60),
+                  "second": range(0, 60),
+                  "microsecond": range(0, 1000000)}
+
+    RelUnits = [a + 's' for a in UnitRanges]
+
+    @classmethod
+    def add_rd_props(cls):
+        for u in cls.UnitRanges.keys():
+            setattr(cls, u, property(
+                lambda self: self.relativedelta.__getattribute__(u)))
 
     @property
+    def unit(self):
+        for abs in self.relativedelta:
+            if abs is not None:
+                sm = abs
+        return sm
+
     def __init__(self, **kwargs):
-        self.relativedelta = relativedelta(**kwargs).normalized()
+        if any([k not in self.__class__.UnitRanges.keys() for k in kwargs]):
+            raise TypeError("Element units must be one of: "
+                            f"{self.__class__.UnitRanges.keys()}")
+
+        self.relativedelta = relativedelta(**kwargs)
+        self.UnitRanges = {}
+        for u in self.sub_units():
+            self.UnitRanges[u] = self.__class__.UnitRanges[u]
+        # This isn't right. we need to differentiate between a whold year, where we'll use every month
+        # and so we'll iterate. vs a single month which we need to determine year.
+        if "day" in self.UnitRanges:
+            if self.month is None:
+                raise ValueError(
+                    "Cannot determine range of days if year not set")
+            elif self.month == 2:
+                if self.year is None:
+                    raise ValueError(
+                        "Cannot determine range of days for February if year not set.")
+                else:
+                    self.UnitRanges["day"] = monthrange(self.year, self.month)
+
+    def sub_units(self):
+        id = list(self.__class__.UnitRanges.keys()).index(self.unit)
+        return list(self.__class__.UnitRanges.keys())[id + 1:]
+
+    def iter_unit(self, unit):
+        if unit == "year":
+            raise ValueError("Cannot iterate over years.")
+        if unit not in self.sub_units():
+            raise ValueError("Unit not in element.")
+
+        rd = relativedelta()
+        r.setattr(unit,
+        while
 
 
-def test_period():
-    with pytest.raises(TypeError):
-        p = Period()
-    with pytest.raises(TypeError):
-        p = Period(start=datetime(2020, 1, 1))
-    with pytest.raises(TypeError):
-        p = Period(end=datetime(2020, 1, 1))
-
-    p = Period(duration=timedelta(days=1))
-    assert p.start is None
-    assert p.end is None
-    assert p.duration == timedelta(days=1)
-
-    p.start = datetime(2020, 1, 1)
-    assert p.start == datetime(2020, 1, 1)
-    assert p.end == datetime(2020, 1, 2)
-    assert p.duration == timedelta(days=1)
+CalendarElement.add_rd_props()
 
 
 def _quacks_like_a_dt(obj):
@@ -191,12 +226,12 @@ class _fakedt:
     """ For testing only. """
 
     def __init__(self):
-        self.year = None
-        self.day = None
-        self.month = None
-        self.minute = None
-        self.second = None
-        self.microsecond = None
+        self.year=None
+        self.day=None
+        self.month=None
+        self.minute=None
+        self.second=None
+        self.microsecond=None
 
     def __radd__(self, other):
         pass
@@ -212,9 +247,9 @@ class _fakedate:
     """ For testing only. """
 
     def __init__(self):
-        self.year = None
-        self.day = None
-        self.month = None
+        self.year=None
+        self.day=None
+        self.month=None
 
     def __radd__(self, other):
         pass
@@ -260,7 +295,7 @@ def test_chrono_kind():
 
 def _date_setter(obj, value, attr="date"):
     # _date_or_dt will raise error if neither.
-    kind = _chrono_kind(obj)
+    kind=_chrono_kind(obj)
     match kind:
         case "date":
             setattr(obj, attr, value)
@@ -290,15 +325,15 @@ def _validate_date_input(value, start=None, end=None, inc="days"):
     No attempt is made to similarly coerce start/end to dates.
 
     """
-    out_of_range = "{date} is in not given range: {start} to {end}"
+    out_of_range="{date} is in not given range: {start} to {end}"
     try:
-        kind = _chrono_kind(value)
-        date = value
+        kind=_chrono_kind(value)
+        date=value
     except TypeError:
         if inc in [days, seconds, microseconds,
                    milliseconds, minutes, hours, weeks]:
-            kwarg = {inc: value}
-            date = start + timedelta(**kwarg)
+            kwarg={inc: value}
+            date=start + timedelta(**kwarg)
         raise ValueError(f"{value} is not a date and cannot be "
                          "coerced to a date with given parameters.")
 
@@ -352,12 +387,12 @@ class Year_Data():
     def year(self, year):
         try:
             if self.date.year != year:
-                self._year = year
+                self._year=year
             del self.date
         except (AttributeError, TypeError):
             pass
 
-        self._year = year
+        self._year=year
 
     @ property
     def date(self):
@@ -371,7 +406,7 @@ class Year_Data():
 
     @ date.deleter
     def date(self):
-        self._date = None
+        self._date=None
 
     @ property
     def start(self):
@@ -383,12 +418,12 @@ class Year_Data():
 
     def __init__(self, year=None, date=None):
         if year is None:
-            year = datetime.now().year
-        self.year = year
+            year=datetime.now().year
+        self.year=year
 
         if date is None:
-            date = datetime(self.year, 1, 1)
-        self.date = date
+            date=datetime(self.year, 1, 1)
+        self.date=date
 
     def length(self):
         """ Return the length of the calendar year in days."""
@@ -406,7 +441,7 @@ class Year_Data():
 
     def date_as_number(self, d=None):
         if d is None:
-            d = self.date
+            d=self.date
 
         try:
             return (d - self.start().date()).days
@@ -415,13 +450,13 @@ class Year_Data():
 
     def monthrange(self, month=None):
         if month is None:
-            month = self.date.month
+            month=self.date.month
         return monthrange(self.year, month)
 
     def iterdates(self, start=0, end=None):
 
         if end is None:
-            end = self.end
+            end=self.end
 
         if end not in self:
             if end != self.end:
@@ -430,7 +465,7 @@ class Year_Data():
 
         # If start is an int, create a date from it.
         try:
-            start = self.number_as_date(start)
+            start=self.number_as_date(start)
         except TypeError:
             # If not an int, it may be datetime.
             pass
@@ -456,20 +491,20 @@ class Year_Data():
                 return self.start() <= self.number_as_date(value) <= datetime(self.year+1, 1, 1)
 
     def to_dict(self):
-        columns = ["date", "year", "month", "month_str",
+        columns=["date", "year", "month", "month_str",
                    "day", "weekday", "weekday_str"]
-        funcs = [lambda d: d,
+        funcs=[lambda d: d,
                  lambda d: d.year,
                  lambda d: d.month,
                  lambda d: month_name[d.month],
                  lambda d: d.day,
                  lambda d: d.weekday(),
                  lambda d: day_name[d.weekday()]]
-        col_func = dict(zip(columns, funcs))
+        col_func=dict(zip(columns, funcs))
 
-        year_dict = {}
+        year_dict={}
         for column in columns:
-            year_dict[column] = []
+            year_dict[column]=[]
 
         for date in self.iterdates():
             for column in col_func:
