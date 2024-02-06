@@ -1,7 +1,7 @@
 import calendar
 from datetime import datetime, timedelta, date, time
 from dateutil.parser import parse
-from datetutil.relativedelta import relativedelta
+from dateutil.relativedelta import relativedelta
 from calendar import monthrange, month_name, day_name
 try:
     import pandas as pd
@@ -94,7 +94,7 @@ class Period:
             self._duration = self._end - self._start
         self._end = None
 
-    def __init__(start=None, end=None, duration=None):
+    def __init__(self, start=None, end=None, duration=None):
         if all([p is None for p in locals().values()]):
             raise TypeError("Must pass start and end or duration.")
 
@@ -112,17 +112,32 @@ class Period:
         self.end = end
 
 
+def test_period():
+    with pytest.raises(TypeError):
+        p = Period()
+    with pytest.raises(TypeError):
+        p = Period(start=datetime(2020, 1, 1))
+    with pytest.raises(TypeError):
+        p = Period(end=datetime(2020, 1, 1))
+
+    p = Period(duration=timedelta(days=1))
+    assert p.start is None
+    assert p.end is None
+    assert p.duration == timedelta(days=1)
+
+    p.start = datetime(2020, 1, 1)
+    assert p.start == datetime(2020, 1, 1)
+    assert p.end == datetime(2020, 1, 2)
+    assert p.duration == timedelta(days=1)
+
+
 def _quacks_like_a_dt(obj):
     """ Reusable function to allow passing dt objects or parseable strings."""
     try:
         obj.date()
         obj.year
         obj.day
-        obj.hour
         obj.month
-        obj.minute
-        obj.second
-        obj.microsecond
         obj + timedelta(1)
     except (AttributeError, TypeError):
         return False
@@ -142,8 +157,6 @@ def _quacks_like_a_time(obj):
     try:
         obj.minute
         obj.hour
-        obj.second
-        obj.microsecond
     except AttributeError:
         return False
 
@@ -242,100 +255,22 @@ def _chrono_kind(obj):
         f"{obj} is used as a chrono type but does not quack like one.")
 
 
-def test_date_or_dt():
-    assert _date_or_dt(date(2020, 1, 1)) == "date"
-    assert _date_or_dt(datetime(2020, 1, 1)) == "dt"
+def test_chrono_kind():
+    assert _chrono_kind(date(2020, 1, 1)) == "date"
+    assert _chrono_kind(datetime(2020, 1, 1)) == "dt"
 
-    assert _date_or_dt(_fakedate()) == "date"
-    assert _date_or_dt(_fakedt()) == "dt"
+    assert _chrono_kind(_fakedate()) == "date"
+    assert _chrono_kind(_fakedt()) == "dt"
 
     with pytest.raises(TypeError):
-        _date_or_dt(1)
+        _chrono_kind(1)
     with pytest.raises(TypeError):
-        _date_or_dt("2020-01-01")
-
-
-def _chrono_contains(start, value, end):
-    """ return true if value is in the timespan [start, end) false otherwise.
-
-    Return True if `value` is in the timespan described by `start` and `end`.
-    Evaluation can be complicated, but the following is designed to answer
-    the simple "human-like" version of the question: is the moment in time referred to by
-    `value` between `start` and `end` or does it occur on a date referred to by `start` and
-    `end if they represent a single day. True if yes, False if no.
-
-    If all parameters are the same object type, comparison uses the builtin
-    comparison rules.
-
-    For mixed types, dates without times in the `start` position refer to the first moment
-    of that date while dates in the `end` position refer to the last moment of that date.
-    So if start regers to "January 1, 2000" it is treated as January 1, 2000 00:00.0 and
-    January 1, 2000 in the `end` position is treated as January 1, 2000 23:59.00.
-    (To arbitrary precision when possible.)
-    Times without dates are treated as wall-clock times. If that time can occur
-    within the range return True, otherwise return False.
-
-    Example: `start` is a datetime representing january 1, 2000 at 10:00 am
-             `end` is a date object representing january 1, 2000.
-             Since `start` is a datetime `end` is interpreted as the last
-             moment before the change over to Jan 2, 2000.
-             if `value` is 10:00 am return True. (bevause start <= value).
-             if `value` is 8:00 am  return False, because the clock time of
-             8:00 am does not occur between jan 1, 2000 10:00 and the last moment
-             of January 1, 2000.
-
-            `
-            _chrono_contains(datetime(2000, 1, 1, 10, 0),
-                              10:00,
-                              date(2000, 1, 1))
-            -> True
-            `
-
-
-    If both `start` and `end` are dates, and value is a time, then return True as long as
-    start <= end. The rationale is: any time without a date refers to the whole day, unless
-    another datetime (or time) cuts off part of the day.
-    """
-    # My insistence on duck-typing might be pathological.
-
-    # If it works, it works.
-    try:
-        return start <= value < end
-    except TypeError:
-        pass
-
-    pattern = [_chrono_kind(start), _chrono_kind(value), _chrono_kind(end)]
-
-    match pattern:
-        case ["dt", "time", "dt"]:
-            if start.time() <= value < (datetime.combine(datetime(2000, 1, 1)) - time.resolution).time():
-                value = datetime.combine(start.date(), value)
-                return start <= value < end
-
-        case ["dt", "date", "dt"]:
-            return start <= datetime.combine(value, time(0, 0)) < end
-
-        case ["dt", "date", "date"]:
-            return start <= datetime.combine(value, time(0, 0)) < datetime.combine(end, time(0, 0) - timedelta.resolution)
-
-
-def test_chrono_contains():
-    # TODO: Finish this.
-    assert _chrono_contains(datetime(2000, 1, 1),
-                            time(10, 0),
-                            datetime(2000, 1, 1))
-
-    assert _chrono_contains(datetime(2000, 1, 1),
-                            datetime(2000, 1, 1),
-                            datetime(2000, 1, 1))
-
-    assert _chrono_contains(datetime(2000, 1, 1),
-
+        _chrono_kind("2020-01-01")
 
 
 def _date_setter(obj, value, attr="date"):
     # _date_or_dt will raise error if neither.
-    kind=_date_or_dt(obj)
+    kind = _date_or_dt(obj)
     match kind:
         case "date":
             setattr(obj, attr, value)
@@ -365,15 +300,15 @@ def _validate_date_input(value, start=None, end=None, inc="days"):
     No attempt is made to similarly coerce start/end to dates.
 
     """
-    out_of_range="{date} is in not given range: {start} to {end}"
+    out_of_range = "{date} is in not given range: {start} to {end}"
     try:
-        kind=_date_or_dt(value)
-        date=value
+        kind = _date_or_dt(value)
+        date = value
     except TypeError:
         if inc in [days, seconds, microseconds,
                    milliseconds, minutes, hours, weeks]:
-            kwarg={inc: value}
-            date=start + timedelta(**kwarg)
+            kwarg = {inc: value}
+            date = start + timedelta(**kwarg)
         raise ValueError(f"{value} is not a date and cannot be "
                          "coerced to a date with given parameters.")
 
@@ -427,12 +362,12 @@ class Year_Data():
     def year(self, year):
         try:
             if self.date.year != year:
-                self._year=year
+                self._year = year
             del self.date
         except (AttributeError, TypeError):
             pass
 
-        self._year=year
+        self._year = year
 
     @ property
     def date(self):
@@ -446,7 +381,7 @@ class Year_Data():
 
     @ date.deleter
     def date(self):
-        self._date=None
+        self._date = None
 
     @ property
     def start(self):
@@ -458,12 +393,12 @@ class Year_Data():
 
     def __init__(self, year=None, date=None):
         if year is None:
-            year=datetime.now().year
-        self.year=year
+            year = datetime.now().year
+        self.year = year
 
         if date is None:
-            date=datetime(self.year, 1, 1)
-        self.date=date
+            date = datetime(self.year, 1, 1)
+        self.date = date
 
     def length(self):
         """ Return the length of the calendar year in days."""
@@ -481,7 +416,7 @@ class Year_Data():
 
     def date_as_number(self, d=None):
         if d is None:
-            d=self.date
+            d = self.date
 
         try:
             return (d - self.start().date()).days
@@ -490,13 +425,13 @@ class Year_Data():
 
     def monthrange(self, month=None):
         if month is None:
-            month=self.date.month
+            month = self.date.month
         return monthrange(self.year, month)
 
     def iterdates(self, start=0, end=None):
 
         if end is None:
-            end=self.end
+            end = self.end
 
         if end not in self:
             if end != self.end:
@@ -505,7 +440,7 @@ class Year_Data():
 
         # If start is an int, create a date from it.
         try:
-            start=self.number_as_date(start)
+            start = self.number_as_date(start)
         except TypeError:
             # If not an int, it may be datetime.
             pass
@@ -531,20 +466,20 @@ class Year_Data():
                 return self.start() <= self.number_as_date(value) <= datetime(self.year+1, 1, 1)
 
     def to_dict(self):
-        columns=["date", "year", "month", "month_str",
+        columns = ["date", "year", "month", "month_str",
                    "day", "weekday", "weekday_str"]
-        funcs=[lambda d: d,
+        funcs = [lambda d: d,
                  lambda d: d.year,
                  lambda d: d.month,
                  lambda d: month_name[d.month],
                  lambda d: d.day,
                  lambda d: d.weekday(),
                  lambda d: day_name[d.weekday()]]
-        col_func=dict(zip(columns, funcs))
+        col_func = dict(zip(columns, funcs))
 
-        year_dict={}
+        year_dict = {}
         for column in columns:
-            year_dict[column]=[]
+            year_dict[column] = []
 
         for date in self.iterdates():
             for column in col_func:
