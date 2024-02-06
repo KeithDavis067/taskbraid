@@ -270,7 +270,7 @@ def test_chrono_kind():
 
 def _date_setter(obj, value, attr="date"):
     # _date_or_dt will raise error if neither.
-    kind = _date_or_dt(obj)
+    kind = _chrono_kind(obj)
     match kind:
         case "date":
             setattr(obj, attr, value)
@@ -302,7 +302,7 @@ def _validate_date_input(value, start=None, end=None, inc="days"):
     """
     out_of_range = "{date} is in not given range: {start} to {end}"
     try:
-        kind = _date_or_dt(value)
+        kind = _chrono_kind(value)
         date = value
     except TypeError:
         if inc in [days, seconds, microseconds,
