@@ -1,6 +1,7 @@
 import calendar
 from datetime import datetime, timedelta, date, time
 from dateutil.parser import parse
+from datetutil.relativedelta import relativedelta
 from calendar import monthrange, month_name, day_name
 try:
     import pandas as pd
@@ -16,7 +17,99 @@ except ImportError:
 # TODO: Add event class. Recase Year_Data as and "event" class and add make
 # Year_Data a subclass.
 #
-#
+
+
+class Period:
+
+    @property
+    def duration(self):
+        if self._duration is not None:
+            return self._duration
+        try:
+            return self.end - self.start
+        except TypeError:
+            return None
+
+    @duration.setter
+    def duration(self, value):
+        # Throw error if we don't act like a delta.
+        if value is None:
+            del self.duration
+        else:
+            value + datetime(2000, 1, 1)
+            # Enforce internal duration storage.
+            self._duration = value
+            if self._start is not None:
+                self._end = None
+            elif self._end is not None:
+                self._start = None
+
+    @property
+    def start(self):
+        if self._start is not None:
+            return self._start
+
+        try:
+            return self._end - self._duration
+        except TypeError:
+            return None
+
+    @start.setter
+    def start(self, value):
+        if value is None:
+            del self.start
+        else:
+            self._start = value
+            if self._end is not None:
+                self._duration = None
+
+    @start.deleter
+    def start(self):
+        if self._duration is None:
+            self._duration = self._end - self._start
+        self._start = None
+
+    @property
+    def end(self):
+        if self._end is not None:
+            return self._end
+
+        try:
+            return self._start + self._duration
+        except TypeError:
+            return None
+
+    @end.setter
+    def end(self, value):
+        if value is None:
+            del self.end
+        else:
+            self._end = value
+            if self._start is not None:
+                self._duration = None
+
+    @end.deleter
+    def end(self):
+        if self._duration is None:
+            self._duration = self._end - self._start
+        self._end = None
+
+    def __init__(start=None, end=None, duration=None):
+        if all([p is None for p in locals().values()]):
+            raise TypeError("Must pass start and end or duration.")
+
+        if duration is None:
+            if start is None or end is None:
+                raise TypeError(
+                    "If duration is not set, both start and end must be set.")
+
+        self._duration = None
+        self._start = None
+        self._end = None
+
+        self.duration = duration
+        self.start = start
+        self.end = end
 
 
 def _quacks_like_a_dt(obj):
