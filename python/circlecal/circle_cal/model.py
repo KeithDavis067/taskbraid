@@ -16,100 +16,90 @@ except ImportError:
 
 # TODO: Add event class. Recase Year_Data as and "event" class and add make
 # Year_Data a subclass.
-#
 
 
-class Period:
+def get_duration(obj):
+    if obj._duration is not None:
+        return obj._duration
+    try:
+        return obj.end - obj.start
+    except TypeError:
+        return None
+
+
+def set_duration(obj, value):
+    # Throw error if we don't act like a delta.
+    if value is None:
+        del obj.duration
+    else:
+        value + datetime(2000, 1, 1)
+        # Enforce internal duration storage.
+        obj._duration = value
+        if obj._start is not None:
+            obj._end = None
+        elif obj._end is not None:
+            obj._start = None
+
+
+def get_start(obj):
+    if obj._start is not None:
+        return obj._start
+
+    try:
+        return obj._end - obj._duration
+    except TypeError:
+        return None
+
+
+def set_start(obj, value):
+    if value is None:
+        del obj.start
+    else:
+        obj._start = value
+        if obj._end is not None:
+            obj._duration = None
+
+
+def del_start(obj):
+    if obj._duration is None:
+        obj._duration = obj._end - obj._start
+    obj._start = None
+
+
+def get_end(obj):
+    if obj._end is not None:
+        return obj._end
+
+    try:
+        return obj._start + obj._duration
+    except TypeError:
+        return None
+
+
+def set_end(obj, value):
+    if value is None:
+        del obj.end
+    else:
+        obj._end = value
+        if obj._start is not None:
+            obj._duration = None
+
+
+def del_end(obj):
+    if obj._duration is None:
+        obj._duration = obj._end - obj._start
+    obj._end = None
+
+
+class CalendarUnit:
+    AbsUnits = ['day', 'hour', 'microsecond',
+                'minute', 'month', 'second', 'weekday', 'year']
+
+    RelUnits = [a + 's' for a in AbsUnits]
 
     @property
-    def duration(self):
-        if self._duration is not None:
-            return self._duration
-        try:
-            return self.end - self.start
-        except TypeError:
-            return None
-
-    @duration.setter
-    def duration(self, value):
-        # Throw error if we don't act like a delta.
-        if value is None:
-            del self.duration
-        else:
-            value + datetime(2000, 1, 1)
-            # Enforce internal duration storage.
-            self._duration = value
-            if self._start is not None:
-                self._end = None
-            elif self._end is not None:
-                self._start = None
-
-    @property
-    def start(self):
-        if self._start is not None:
-            return self._start
-
-        try:
-            return self._end - self._duration
-        except TypeError:
-            return None
-
-    @start.setter
-    def start(self, value):
-        if value is None:
-            del self.start
-        else:
-            self._start = value
-            if self._end is not None:
-                self._duration = None
-
-    @start.deleter
-    def start(self):
-        if self._duration is None:
-            self._duration = self._end - self._start
-        self._start = None
-
-    @property
-    def end(self):
-        if self._end is not None:
-            return self._end
-
-        try:
-            return self._start + self._duration
-        except TypeError:
-            return None
-
-    @end.setter
-    def end(self, value):
-        if value is None:
-            del self.end
-        else:
-            self._end = value
-            if self._start is not None:
-                self._duration = None
-
-    @end.deleter
-    def end(self):
-        if self._duration is None:
-            self._duration = self._end - self._start
-        self._end = None
-
-    def __init__(self, start=None, end=None, duration=None):
-        if all([p is None for p in locals().values()]):
-            raise TypeError("Must pass start and end or duration.")
-
-        if duration is None:
-            if start is None or end is None:
-                raise TypeError(
-                    "If duration is not set, both start and end must be set.")
-
-        self._duration = None
-        self._start = None
-        self._end = None
-
-        self.duration = duration
-        self.start = start
-        self.end = end
+    def __init__(self, **kwargs):
+        self.relativedelta = relativedelta(**kwargs).normalized()
 
 
 def test_period():
