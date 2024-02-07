@@ -103,6 +103,8 @@ class CalendarElement:
 
     RELUNITS = [a + 's' for a in ABSUNITS]
 
+    UNITORDER = dict([(u, i) for i, u in enumerate(reversed(ABSUNITS))])
+
     @classmethod
     def set_rd_props(cls):
         for u in cls.ABSUNITS:
@@ -170,25 +172,23 @@ class CalendarElement:
             if self.unitranges[u] is not None:
                 total *= len(self.unitranges[u])
 
-    def iterover(self, unit=None, units=None, date=False, tuple=False, value=None):
-        # TODO: Rewrite this to handle iterating over subunit when higher unit is not set.
+    def iterover(self, unit=None, units=None, date=False, tuple=False, ranges=None, value=None, smallest=None):
         if value is None:
             value = self.relativedelta
-        if unit is not None:
-            units = [unit]
 
-        unit = units[0]
-        for unit in units:
-            if unit != "day":
-                for i in self.unitranges[unit]:
-                    setattr(value, unit, i)
-                    yield i
-                    yield from self.iterover(units=units[1:], date=date, value=value)
-            else:
-                for i in range(1, monthrange(value.year, value.month)[1]+1):
-                    setattr(value, unit, i)
-                    yield i
-                    yield from self.iterover(units=units[1:], date=False, value=value)
+        if ranges is None:
+            ranges = self.unitranges
+
+        for u, r in ranges.items():
+            if self.UNITORDER[u] >= self.UNITORDER[smallest]:
+                if u == "day":
+                    r = range(1, monthrange(value.year, value.month)[1])
+                less1 = ranges.copy()
+                del less1[u]
+                for i in r:
+                    setattr(value, u, i)
+                    yield (u, i)
+                    yield from self.iterover(units=units, date=date, value=value, ranges=less1, smallest=smallest)
 
     def iter(self):
         yield from self.iterover()
