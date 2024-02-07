@@ -171,6 +171,7 @@ class CalendarElement:
                 total *= len(self.unitranges[u])
 
     def iterover(self, unit=None, units=None, date=False, tuple=False, value=None):
+        # TODO: Rewrite this to handle iterating over subunit when higher unit is not set.
         if value is None:
             value = self.relativedelta
         if unit is not None:
@@ -180,12 +181,12 @@ class CalendarElement:
         for unit in units:
             if unit != "day":
                 for i in self.unitranges[unit]:
-                    setattr(value, u, i)
+                    setattr(value, unit, i)
                     yield i
                     yield from self.iterover(units=units[1:], date=date, value=value)
             else:
                 for i in range(1, monthrange(value.year, value.month)[1]+1):
-                    setattr(value, u, i)
+                    setattr(value, unit, i)
                     yield i
                     yield from self.iterover(units=units[1:], date=False, value=value)
 
