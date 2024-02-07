@@ -101,10 +101,25 @@ class CalendarElement:
                   "second": range(0, 60),
                   "microsecond": range(0, 1000000)}
 
+    UNITRANGES = ["year",
+                  "month",
+                  "day",
+                  "hour",
+                  "minute",
+                  "second",
+                  "microsecond"]
+
     RELUNITS = [a + 's' for a in UNITRANGES]
+
+    @classmethod
+    def set_rd_props(cls):
+        for u in cls.UNITRANGES:
+            setattr(cls, u, property(lambda self,
+                    u=u: getattr(self.relativedelta, u)))
 
     @property
     def unit(self):
+        sm = None
         for u in self.UNITRANGES:
             if getattr(self.relativedelta, u) is not None:
                 sm = u
@@ -112,41 +127,78 @@ class CalendarElement:
 
     @property
     def subunits(self):
-        idx = list(self.__class__.UNITRANGES.keys()).index(self.unit)
-        return list(self.__class__.UNITRANGES.keys())[idx + 1:]
+        idx = self.__class__.UNITRANGES.index(self.unit)
+        return self.__class__.UNITRANGES[idx + 1:]
 
     def __init__(self, **kwargs):
         if any([k not in self.__class__.UNITRANGES for k in kwargs]):
             raise TypeError("Element units must be one of: "
-                            f"{self.__class__.UNITRANGES.keys()}")
+                            f"{self.__class__.UNITRANGES}")
 
         self.relativedelta = relativedelta(**kwargs)
+        self._set_ranges()
+
+    def _set_ranges(self):
         self.unitranges = {}
         for u in self.subunits:
-            self.unitranges[u] = self.__class__.UNITRANGES[u]
+            match u:
+                case "year":
+                    self.unitranges[u] = None
+                case "day":
+                    try:
+                        self.unitranges[u] = range(
+                            1, monthrange(self.year, self.month)[1]+1)
+                    except TypeError:
+                        if self.year is None:
+                            if self.month == 2 or self.month is None:
+                                raise ValueError("February may occur during "
+                                                 "iteration. Set year to "
+                                                 "determine number of days.")
+                        # Defer setting to iteration code.
+                        self.unitranges[u] = None
+                case "month":
+                    self.unitranges[u] = range(1, 13)
+                case "minute" | "second":
+                    self.unitranges[u] = range(1, 60)
+                case "hour":
+                    self.unitranges[u] = range(1, 23)
+                case "microsecond":
+                    self.unitranges[u] = range(1, 1000000)
 
-    def iterover(self, unit, date=False):
-        if unit == "year":
+    def __len__(self):
+        total = 1
+        for u in self.subunits:
+            try:
+                self.unitranges[u]
+
+    def iterover(self, unit=None, units=None, date=False, tuple=False):
+        if unit is not None:
+            units = [unit]
+
+        if "year" in units:
             raise ValueError("Cannot iterate over years.")
-        if unit not in self.subunits:
-            raise ValueError("{unit} not contained in {self.unit}")
-
-        if not date:
-            if unit != "day":
-                for i in self.unitranges[unit]:
-                    yield i
-            else:
-                try:
-                    for i in range(1, self.unitranges[unit](self.year, self.month)+1):
+        if any([u not in self.subunits for u in units]):
+            raise ValueError("{unit} not a subunit of in {self.unit}")
+        for unit in units:
+            if not date:
+                if unit != "day":
+                    for i in self.unitranges[unit]:
                         yield i
-                except TypeError as e:
-                    raise ValueError(
-                        "Cannot determine length of February without year.") from e
+                        yield from self.iterover(units=units[1:], date=False)
+                else:
+                    try:
+                        for i in range(1, self.unitranges[unit](self.year, self.month)+1):
+                            yield i
+                            yield from self.iterover(units=units[1:], date=False)
+                    except TypeError as e:
+                        raise ValueError(
+                            "Cannot determine length of February without year.") from e
+
+    def iter(self):
+        yield from self.iterover(units=self.subunits)
 
 
-for u in CalendarElement.UNITRANGES:
-    setattr(CalendarElement, u, property(
-        lambda self: getattr(getattr(self, "relativedelta"), u)))
+CalendarElement.set_rd_props()
 
 
 def _quacks_like_a_dt(obj):
