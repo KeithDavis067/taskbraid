@@ -91,7 +91,7 @@ def del_end(obj):
     obj._end = None
 
 
-class CalendarElement:
+class TimePeice:
 
     ABSUNITS = ["year",
                 "month",
@@ -106,23 +106,34 @@ class CalendarElement:
     UNITORDER = dict([(u, i) for i, u in enumerate(reversed(ABSUNITS))])
 
     @classmethod
-    def set_rd_props(cls):
+    def set_props(cls):
         for u in cls.ABSUNITS:
             setattr(cls, u, property(lambda self,
-                    u=u: getattr(self.relativedelta, u)))
+                    u=u: getattr(self, u)))
 
     @property
     def unit(self):
         sm = None
         for u in self.ABSUNITS:
-            if getattr(self.relativedelta, u) is not None:
+            if getattr(self, u) is not None:
                 sm = u
         return sm
 
     @property
     def subunits(self):
-        idx = self.__class__.ABSUNITS.index(self.unit)
-        return self.__class__.ABSUNITS[idx + 1:]
+        UO = self.UNITORDER
+        return [u for u in UO if UO[u] < UO[self.unit]]
+
+    def peices(self, depth=1):
+        subu = self.subunits[0]
+        if subu == "day":
+            if len(self.unitranges[month] > 1):
+
+            except AttributeError as e:
+                raise ValueError(
+                    "Unable to generate {u} iterator if month is not set.")
+
+        for r in self.unitranges[self.subunits[0]]:
 
     def __init__(self, **kwargs):
         if any([k not in self.__class__.ABSUNITS for k in kwargs]):
