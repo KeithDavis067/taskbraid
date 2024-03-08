@@ -162,7 +162,7 @@ class CalendarElement:
                     case "minute" | "second":
                         self.unitranges[u] = range(1, 60)
                     case "hour":
-                        self.unitranges[u] = range(1, 23)
+                        self.unitranges[u] = range(1, 24)
                     case "microsecond":
                         self.unitranges[u] = range(1, 1000000)
 
@@ -172,23 +172,35 @@ class CalendarElement:
             if self.unitranges[u] is not None:
                 total *= len(self.unitranges[u])
 
-    def iterover(self, unit=None, units=None, date=False, tuple=False, ranges=None, value=None, smallest=None):
+    def iterover(self, unit=None, units=None, date=False, tuple=False,
+                 ranges=None, value=None, smallest=None, depth=-1):
+        depth = depth + 1
         if value is None:
             value = self.relativedelta
 
         if ranges is None:
             ranges = self.unitranges
 
-        for u, r in ranges.items():
-            if self.UNITORDER[u] >= self.UNITORDER[smallest]:
-                if u == "day":
-                    r = range(1, monthrange(value.year, value.month)[1])
-                less1 = ranges.copy()
-                del less1[u]
-                for i in r:
-                    setattr(value, u, i)
-                    yield (u, i)
-                    yield from self.iterover(units=units, date=date, value=value, ranges=less1, smallest=smallest)
+        # Find level for this depth.
+        for u in self.ABSUNITS:
+            if u in ranges:
+                r = ranges[u]
+                break
+
+        if self.UNITORDER[u] >= self.UNITORDER[smallest]:
+            if u == "day" and r is None:
+                r = range(1, monthrange(value.year, value.month)[1]+1)
+            less1 = ranges.copy()
+            del less1[u]
+            for i in r:
+                setattr(value, u, i)
+                yield (u, i)
+                yield from self.iterover(units=units,
+                                         date=date,
+                                         value=value,
+                                         ranges=less1,
+                                         smallest=smallest,
+                                         depth=depth)
 
     def iter(self):
         yield from self.iterover()
