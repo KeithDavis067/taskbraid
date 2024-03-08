@@ -172,7 +172,7 @@ class CalendarElement:
             if self.unitranges[u] is not None:
                 total *= len(self.unitranges[u])
 
-    def iterover(self, unit=None, units=None, chronobj=False, tuple=False,
+    def iterover(self, unit=None, units=[], chronobj=False, tuple=False,
                  ranges=None, value=None):
         """ Return a generator over the CalendarElement's subelements.
 
@@ -197,9 +197,19 @@ class CalendarElement:
                 iterate. Behavior is similar to `unit` parameter.
             chronobj: True returns a datetime or time object sufficient to represent the calendar element.
             tuple: If True, return a namedtuple appropriate to fully describe the value of the iteration.
+            ranges: override the dict of ranges on this instance. Primarily used for recursion.
+            value: override the `value`  attribute (a relativedelta) of this instance.
+                Primarily used for recursion.
         """
-        # TODO You are working here to make it match the doc.
-        depth = depth + 1
+        if unit is None:
+            unit = self.subunits[0]
+
+        units = units + unit
+
+        for unit in units:
+            if unit not in self.subunits:
+                raise ValueError(f"Unit not a subunit of {self.unit.}")
+
         if value is not None:
             if value not in self:
                 raise ValueError("Value not in CalendarElement.")
@@ -231,6 +241,11 @@ class CalendarElement:
 
     def iter(self):
         yield from self.iterover()
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
 
 
 CalendarElement.set_rd_props()
