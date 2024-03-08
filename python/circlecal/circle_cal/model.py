@@ -172,9 +172,37 @@ class CalendarElement:
             if self.unitranges[u] is not None:
                 total *= len(self.unitranges[u])
 
-    def iterover(self, unit=None, units=None, date=False, tuple=False,
-                 ranges=None, value=None, smallest=None, depth=-1):
+    def iterover(self, unit=None, units=None, chronobj=False, tuple=False,
+                 ranges=None, value=None):
+        """ Return a generator over the CalendarElement's subelements.
+
+        Return a generator that iterates over the subunits of this element.
+        See the parameter definitions for details.
+
+        Parameters:
+            unit: A string indicating a single subunit of calendar element over
+                which to iterate. For example if the calendar element represents
+                an "hour" and the subunit is "second" the iteration will return 
+                the possitlbe values of second within the hour designated.
+                    >> for s in CalendarElement(hour=3).iterover(unit="second")
+                        print(s)
+                    >> 0
+                    >> 1
+                    >> 2
+                    and so on until 59, which is followed by 0 again, until
+                    60 cycles (minutes) have been completed.
+                Default is the largest subunit.
+                Raises ValueError if the subunit is not in `self.subunits`.
+            units: A list of strings indicating the list of subunits over which today
+                iterate. Behavior is similar to `unit` parameter.
+            chronobj: True returns a datetime or time object sufficient to represent the calendar element.
+            tuple: If True, return a namedtuple appropriate to fully describe the value of the iteration.
+        """
+        # TODO You are working here to make it match the doc.
         depth = depth + 1
+        if value is not None:
+            if value not in self:
+                raise ValueError("Value not in CalendarElement.")
         if value is None:
             value = self.relativedelta
 
@@ -195,12 +223,11 @@ class CalendarElement:
             for i in r:
                 setattr(value, u, i)
                 yield (u, i)
-                yield from self.iterover(units=units,
+                yield from self.iterover(unit=unit,
+                                         units=units,
                                          date=date,
                                          value=value,
-                                         ranges=less1,
-                                         smallest=smallest,
-                                         depth=depth)
+                                         ranges=less1)
 
     def iter(self):
         yield from self.iterover()
