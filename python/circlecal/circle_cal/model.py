@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, date, time
 from dateutil.parser import parse
 from dateutil.relativedelta import relativedelta
 from calendar import monthrange, month_name, day_name
+import copy
 try:
     import pandas as pd
 except ImportError:
@@ -124,13 +125,39 @@ class CalendarElement:
         idx = self.__class__.ABSUNITS.index(self.unit)
         return self.__class__.ABSUNITS[idx + 1:]
 
-    def __init__(self, **kwargs):
-        if any([k not in self.__class__.ABSUNITS for k in kwargs]):
-            raise TypeError("Element units must be one of: "
-                            f"{self.__class__.ABSUNITS}")
+    @property
+    def relativedelta(self):
+        return self._relativedelta
 
-        self.relativedelta = relativedelta(**kwargs)
+    @relativedelta.setter
+    def relativedelta(self, value):
+        self._relativedelta = value
         self._set_ranges()
+
+    def __init__(self, **kwargs):
+        if "relativedelta" in kwargs:
+            self.relativedelta = kwargs["relativedelta"]
+        else:
+            self.relativedelta = relativedelta(
+                **dict((key, value) for key, value in kwargs.items() if not key.startswith("_")))
+        self.state = None
+
+    def __iter__(self):
+        print("__iter__ called.")
+        if self.state is None:
+            stateful =
+            stateful.state = copy.deepcopy(self.relativedelta)
+            return stateful
+        else:
+            return self
+
+    def __next__(self):
+        print(self.subunits[0])
+        newstate = self.state + relativedelta(**{self.subunits[0] + "s": 1})
+        self.state = newstate
+        if getattr(newstate, self.unit) > getattr(self.relativedelta, self.unit):
+            raise StopIteration
+        return self.__class__(relativedelta=newstate)
 
     def _set_ranges(self):
         self.unitranges = {}
@@ -208,7 +235,7 @@ class CalendarElement:
 
         for unit in units:
             if unit not in self.subunits:
-                raise ValueError(f"Unit not a subunit of {self.unit.}")
+                raise ValueError(f"Unit not a subunit of {self.unit}.")
 
         if value is not None:
             if value not in self:
@@ -238,14 +265,6 @@ class CalendarElement:
                                          date=date,
                                          value=value,
                                          ranges=less1)
-
-    def iter(self):
-        yield from self.iterover()
-
-    def __iter__(self):
-        return self
-
-    def __next__(self):
 
 
 CalendarElement.set_rd_props()
