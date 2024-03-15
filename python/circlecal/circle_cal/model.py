@@ -91,6 +91,144 @@ def del_end(obj):
     obj._end = None
 
 
+class TimeRegister:
+    ABSUNITS = ["year",
+                "month",
+                "day",
+                "hour",
+                "minute",
+                "second",
+                "microsecond"]
+
+    UNITORDER = dict([(u, i) for i, u in enumerate(reversed(ABSUNITS))])
+
+    @property
+    def unit(self):
+        sm = None
+        for u in self.ABSUNITS:
+            try:
+                if getattr(self, u) is not None:
+                    sm = u
+            except AttributeError:
+                pass
+        return sm
+
+    @ property
+    def subunits(self):
+        idx = self.__class__.ABSUNITS.index(self.unit)
+        try:
+            return self.__class__.ABSUNITS[idx + 1:]
+        except IndexError:
+            return None
+
+    @ property
+    def superunits(self):
+        idx = self.__class__.ABSUNITS.index(self.unit)
+        try:
+            return self.__class__.ABSUNITS[:idx]
+        except IndexError:
+            return None
+
+    @property
+    def subunit(self):
+        su = self.subunits
+        if su is None:
+            return None
+        if len(su) == 0:
+            return None
+        return su[0]
+
+    def __init__(self, **kwargs):
+        if any([k not in self.__class__.ABSUNITS for k in kwargs]):
+            raise TypeError("Element units must be one of: "
+                            f"{self.__class__.ABSUNITS}")
+
+        for u in self.ABSUNITS:
+            try:
+                setattr(self, u, kwargs[u])
+            except KeyError:
+                setattr(self, u, None)
+
+        self._set_ranges()
+
+    def range(self, range):
+        return self.ranges[self.subunit]
+
+    def _set_ranges(self):
+        self.ranges = {}
+        ulist = [self.unit]
+        if self.subunit is not None:
+            ulist = ulist + [self.subunit]
+
+        for u in ulist:
+            try:
+                self.ranges[u] = range(
+                    getattr(self, u), getattr(self, u) + 1)
+            except (TypeError, AttributeError):
+                self.ranges[u] = None
+        for u in self.ranges:
+            if self.ranges[u] is None:
+                match u:
+                    case "year":
+                        self.ranges[u] = None
+                    case "day":
+                        try:
+                            self.ranges[u] = range(
+                                1, monthrange(self.year, self.month)[1]+1)
+                        except TypeError:
+                            if self.year is None:
+                                if self.month == 2 or self.month is None:
+                                    raise ValueError(
+                                        "February may occur during iteration."
+                                        "Set year to determine number of days.")
+                                else:
+                                    self.ranges[u] = range(
+                                        1, monthrange(2000, self.month)[1]+1)
+                            # Defer setting to iteration code.
+                            else:
+                                raise ValueError("Cannot determine number of "
+                                                 "days if month is not set.")
+                    case "month":
+                        self.ranges[u] = range(1, 13)
+                    case "minute" | "second":
+                        self.ranges[u] = range(0, 60)
+                    case "hour":
+                        self.ranges[u] = range(0, 24)
+                    case "microsecond":
+                        self.ranges[u] = range(0, 1000000)
+
+    @ property
+    def value(self):
+        if self.superunits is not None:
+            units = self.superunits + [self.unit]
+        else:
+            units = [self.unit]
+        return dict((u, getattr(self, u)) for u in units)
+
+    def __iter__(self):
+        try:
+            for i in self.ranges[self.subunit]:
+                v = self.value
+                v[self.subunit] = i
+                yield self.__class__(**v)
+        except KeyError:
+            pass
+
+    def recursive_iter(self, maxdepth=3, depth=None):
+        if depth is None:
+            depth = 0
+        else:
+            depth = depth + 1
+        if depth >= maxdepth:
+            yield self
+        else:
+            for sub in self:
+                yield from sub.recursive_iter(maxdepth=maxdepth, depth=depth)
+
+    def __repr__(self):
+        return str(dict(zip(self.ABSUNITS, [getattr(self, u) for u in self.ABSUNITS])))
+
+
 class CalendarElement:
 
     ABSUNITS = ["year",
@@ -105,13 +243,13 @@ class CalendarElement:
 
     UNITORDER = dict([(u, i) for i, u in enumerate(reversed(ABSUNITS))])
 
-    @classmethod
+    @ classmethod
     def set_rd_props(cls):
         for u in cls.ABSUNITS:
             setattr(cls, u, property(lambda self,
                     u=u: getattr(self.relativedelta, u)))
 
-    @property
+    @ property
     def unit(self):
         sm = None
         for u in self.ABSUNITS:
@@ -119,7 +257,7 @@ class CalendarElement:
                 sm = u
         return sm
 
-    @property
+    @ property
     def subunits(self):
         idx = self.__class__.ABSUNITS.index(self.unit)
         return self.__class__.ABSUNITS[idx + 1:]
@@ -182,7 +320,7 @@ class CalendarElement:
         Parameters:
             unit: A string indicating a single subunit of calendar element over
                 which to iterate. For example if the calendar element represents
-                an "hour" and the subunit is "second" the iteration will return 
+                an "hour" and the subunit is "second" the iteration will return
                 the possitlbe values of second within the hour designated.
                     >> for s in CalendarElement(hour=3).iterover(unit="second")
                         print(s)
@@ -225,7 +363,6 @@ class CalendarElement:
                 yield (u, i)
                 yield from self.iterover(unit=unit,
                                          units=units,
-                                         date=date,
                                          value=value,
                                          ranges=less1)
 
