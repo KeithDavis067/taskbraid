@@ -199,7 +199,7 @@ class CalendarElement:
             tuple: If True, return a namedtuple appropriate to fully describe the value of the iteration.
         """
         # TODO You are working here to make it match the doc.
-        depth = depth + 1
+        # depth = depth + 1
         if value is not None:
             if value not in self:
                 raise ValueError("Value not in CalendarElement.")
@@ -215,7 +215,7 @@ class CalendarElement:
                 r = ranges[u]
                 break
 
-        if self.UNITORDER[u] >= self.UNITORDER[smallest]:
+        if self.UNITORDER[u] >= self.UNITORDER[unit]:
             if u == "day" and r is None:
                 r = range(1, monthrange(value.year, value.month)[1]+1)
             less1 = ranges.copy()
