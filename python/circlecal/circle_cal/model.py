@@ -270,31 +270,22 @@ class CalendarElement:
             return True
         return False
 
-    def __next__(self):
-        for u in reversed(self.superunits + [self.unit]):
-            if getattr(self, u) == self.ranges[u] - 1):
-                                self.setattr(self, u) ==
-            else:
-                                setattr(self, u, getattr(self, u) + 1)
-                self.ranges[u]= range(start=getattr(self.u), end=self.range[u].end)
-
-
 
 def _quacks_like_a_dt(obj):
-        """ Reusable function to allow passing dt objects or parseable strings."""
+    """ Reusable function to allow passing dt objects or parseable strings."""
     try:
-                obj.date()
+        obj.date()
         obj.year
         obj.day
         obj.month
         obj + timedelta(1)
     except (AttributeError, TypeError):
-                return False
+        return False
     return True
 
 
 def test_quacks_like_a_dt():
-        assert _quacks_like_a_dt(datetime(2020, 1, 1))
+    assert _quacks_like_a_dt(datetime(2020, 1, 1))
     assert not _quacks_like_a_dt(None)
     assert not _quacks_like_a_dt(date(2020, 1, 1))
     assert not _quacks_like_a_dt("2020-01-01")
@@ -303,87 +294,87 @@ def test_quacks_like_a_dt():
 
 
 def _quacks_like_a_time(obj):
-        try:
+    try:
         obj.minute
         obj.hour
     except AttributeError:
-                return False
+        return False
 
     try:
-                obj.day
+        obj.day
         obj.month
         obj.year
     except AttributeError:
-                pass
+        pass
     else:
-                return False
+        return False
     return True
 
 
 def test_quacks_like_a_time():
-        assert _quacks_like_a_time(time(0, 0, 0))
+    assert _quacks_like_a_time(time(0, 0, 0))
     assert not _quacks_like_a_time(timedelta(days=1))
     assert not _quacks_like_a_time(datetime.now())
     assert not _quacks_like_a_time(date.today())
 
 
 def _quacks_like_a_date(obj):
-        try:
+    try:
         obj.year
         obj.day
         obj.month
         obj + timedelta(1)
     except (AttributeError, TypeError):
-                return False
+        return False
 
     try:
-                obj.date()
+        obj.date()
         return False
     except AttributeError:
-                pass
+        pass
     return True
 
     assert _quacks_like_a_date(_fakedate())
 
 
 class _fakedt:
-        """ For testing only. """
+    """ For testing only. """
 
     def __init__(self):
-                self.year = None
-        self.day= None
-        self.month= None
-        self.minute= None
-        self.second= None
-        self.microsecond= None
+        self.year = None
+        self.day = None
+        self.month = None
+        self.minute = None
+        self.second = None
+        self.microsecond = None
 
     def __radd__(self, other):
-                pass
+        pass
 
     def __add__(self, other):
-                pass
+        pass
 
     def date(self):
-                pass
+        pass
 
 
 class _fakedate:
-        """ For testing only. """
+    """ For testing only. """
 
     def __init__(self):
-                self.year = None
-        self.day= None
-        self.month= None
+        self.year = None
+        self.day = None
+        self.month = None
 
     def __radd__(self, other):
-                pass
+        pass
 
     def __add__(self, other):
-                pass
+        pass
 
 
 def test_quacks_like_a_date():
-        assert _quacks_like_a_date(date(2020, 1, 1))
+    assert _quacks_like_a_date(date(2020, 1, 1))
     assert _quacks_like_a_date(datetime(2020, 1, 1).date())
     assert not _quacks_like_a_date(None)
     assert not _quacks_like_a_date(datetime(2020, 1, 1))
@@ -391,55 +382,53 @@ def test_quacks_like_a_date():
 
 
 def _chrono_kind(obj):
-        if _quacks_like_a_date(obj):
+    if _quacks_like_a_date(obj):
         return "date"
 
     if _quacks_like_a_dt(obj):
-                return "dt"
+        return "dt"
 
     if _quacks_like_a_time(obj):
-                return "time"
+        return "time"
 
     raise TypeError(
         f"{obj} is used as a chrono type but does not quack like one.")
 
 
-        def test_chrono_kind():
-        assert _chrono_kind(date(2020, 1, 1)) == "date"
-        assert _chrono_kind(datetime(2020, 1, 1)) == "dt"
+def test_chrono_kind():
+    assert _chrono_kind(date(2020, 1, 1)) == "date"
+    assert _chrono_kind(datetime(2020, 1, 1)) == "dt"
 
-        assert _chrono_kind(_fakedate()) == "date"
-        assert _chrono_kind(_fakedt()) == "dt"
+    assert _chrono_kind(_fakedate()) == "date"
+    assert _chrono_kind(_fakedt()) == "dt"
 
-        with pytest.raises(TypeError):
+    with pytest.raises(TypeError):
         _chrono_kind(1)
-        with pytest.raises(TypeError):
+    with pytest.raises(TypeError):
         _chrono_kind("2020-01-01")
 
 
-        def _date_setter(obj, value, attr="date"):
-        # _date_or_dt will raise error if neither.
-        kind = _chrono_kind(obj)
-        match kind:
+def _date_setter(obj, value, attr="date"):
+    # _date_or_dt will raise error if neither.
+    kind = _chrono_kind(obj)
+    match kind:
         case "date":
-        setattr(obj, attr, value)
+            setattr(obj, attr, value)
         case "dt":
             # To mathc gcsa implementation, set as date if time is
             # exactly zero.
             # This might trash timezone data on dates, so if
             # not local tz we might
             # leave time, but I need to read more about tzinfo first.
-        if (dt.hours,
-               dt.minutes,
-                dt.seconds,
-                   dt.microseconds) == (0, 0, 0, 0):
-                    setattr(obj, attr, value.date())
-                    else:
-                    setattr(obj, attr, value)
+            if (dt.hours, dt.minutes,
+                    dt.seconds, dt.microseconds) == (0, 0, 0, 0):
+                setattr(obj, attr, value.date())
+            else:
+                setattr(obj, attr, value)
 
 
-                    def _validate_date_input(value, start=None, end=None, inc="days"):
-                    """ Verifies a value as a date or integer with increment.
+def _validate_date_input(value, start=None, end=None, inc="days"):
+    """ Verifies a value as a date or integer with increment.
 
     If start and end are passed, verified that value is within the range
     [start, end). If one but not both are None, only compare to set value(s).
@@ -449,30 +438,29 @@ def _chrono_kind(obj):
     No attempt is made to similarly coerce start/end to dates.
 
     """
-                    out_of_range = "{date} is in not given range: {start} to {end}"
-                    try:
-                    kind = _chrono_kind(value)
-                    date = value
-                    except TypeError:
-                    if inc in [days, seconds, microseconds,
-                   milliseconds, minutes, hours, weeks]:
-                   kwarg = {inc: value}
-                   date = start + timedelta(**kwarg)
-                   raise ValueError(f"{value} is not a date and cannot be "
-                        "coerced to a date with given parameters.")
+    out_of_range = "{date} is in not given range: {start} to {end}"
+    try:
+        kind = _chrono_kind(value)
+        date = value
+    except TypeError:
+        if inc in [days, seconds, microseconds, milliseconds, minutes, hours, weeks]:
+            kwarg = {inc: value}
+            date = start + timedelta(**kwarg)
+            raise ValueError(f"{value} is not a date and cannot be "
+                             "coerced to a date with given parameters.")
 
-                         if start is not None:
-                         if not start <= date:
-                         raise outofrange.format(**locals())
+    if start is not None:
+        if not start <= date:
+            raise outofrange.format(**locals())
 
-                         if end is not None:
-                         if not date < end:
-                         raise outofrange.format(**locals())
-                         return date
+        if end is not None:
+            if not date < end:
+                raise outofrange.format(**locals())
+        return date
 
 
-                         class Event:
-                         """
+class Event:
+    """
     Implementation Note: gcsa module gets events from gcal with the start date as expected
     and the end as the moment the event ends. So, a single date events starts on the day it
     starts and ends the next day. Also, events without times are stored as datetime.dates, while
@@ -484,8 +472,8 @@ def _chrono_kind(obj):
     before. A meeting event that lasts from 10:00 AM to 11:00 AM will return False on the call:
         `11:00 AM in event`.
     """
-                         @ property
-                         def start(self):
+    @ property
+    def start(self):
         return self._start
 
     @ start.setter
@@ -499,148 +487,3 @@ def _chrono_kind(obj):
     @ end.setter
     def start(self, value):
         _date_setter(obj, value, "end")
-
-
-                             class Year_Data():
-
-    @ property
-    def year(self):
-        return self._year
-
-    @ year.setter
-    def year(self, year):
-        try:
-            if self.date.year != year:
-                self._year= year
-            del self.date
-        except (AttributeError, TypeError):
-            pass
-
-        self._year= year
-
-    @ property
-    def date(self):
-        if self._date is None:
-            return datetime.date(self.year, 1, 1)
-        return self._date
-
-    @ date.setter
-    def date(self, date):
-        _date_setter(self, date, "date")
-
-    @ date.deleter
-    def date(self):
-        self._date= None
-
-    @ property
-    def start(self):
-        return date(self.year, 1, 1)
-
-    @ property
-    def end(self):
-        return date(self.year + 1, 1, 1)
-
-    def __init__(self, year=None, date=None):
-        if year is None:
-            year= datetime.now().year
-        self.year= year
-
-        if date is None:
-            date= datetime(self.year, 1, 1)
-        self.date= date
-
-    def length(self):
-        """ Return the length of the calendar year in days."""
-        return (self.end - self.start).days
-
-    def weekday(self, n=None):
-        if n is None:
-            return self.date.weekday()
-        else:
-            return self.number_as_date(n).weekday()
-
-    def number_as_date(self, n, unit="days"):
-        """ Return the date from an integer (Jan 1 = 0)."""
-        return self.start() + timedelta(days=n)
-
-    def date_as_number(self, d=None):
-        if d is None:
-            d= self.date
-
-        try:
-            return (d - self.start().date()).days
-        except TypeError:
-            return (d.date() - self.start().date()).days
-
-    def monthrange(self, month=None):
-        if month is None:
-            month= self.date.month
-        return monthrange(self.year, month)
-
-    def iterdates(self, start=0, end=None):
-
-        if end is None:
-            end= self.end
-
-        if end not in self:
-            if end != self.end:
-                raise (
-                    ValueError, f"{end} is not in calendar year {self.year}.")
-
-                    # If start is an int, create a date from it.
-                    try:
-                    start = self.number_as_date(start)
-                    except TypeError:
-                    # If not an int, it may be datetime.
-                    pass
-                    try:
-                    if not _date_contains(self.start, start, end):
-                    raise ValueError(
-                    f"{start} is not in calendar year {self.year}.")
-                    except TypeError as e:
-                    if not (self.start().date() <= start.date() < end.date()):
-                    raise TypeError(
-                    "start must be a number, or quack like a date or datetime.")
-                    while start in self:
-                    yield start
-                    start += day
-
-                    def __contains__(self, value):
-                    try:
-                    return self.start() <= value < datetime(self.year+1, 1, 1)
-                    except TypeError:
-                    try:
-                    return self.start().date() <= value < datetime(self.year+1, 1, 1).date()
-                    except TypeError:
-                    return self.start() <= self.number_as_date(value) <= datetime(self.year+1, 1, 1)
-
-                    def to_dict(self):
-        columns= ["date", "year", "month", "month_str",
-                   "day", "weekday", "weekday_str"]
-                   funcs = [lambda d: d,
-                 lambda d: d.year,
-                 lambda d: d.month,
-                 lambda d: month_name[d.month],
-                 lambda d: d.day,
-                 lambda d: d.weekday(),
-                 lambda d: day_name[d.weekday()]]
-                 col_func = dict(zip(columns, funcs))
-
-                 year_dict = {}
-                 for column in columns:
-                 year_dict[column] = []
-
-                 for date in self.iterdates():
-                 for column in col_func:
-                 year_dict[column].append(col_func[column](date))
-
-                 return year_dict
-
-                 def to_DataFrame(self):
-                 try:
-                 return pd.DataFrame(self.to_dict())
-                 except (NameError, UnboundLocalError):
-            raise ModuleNotFoundError("pandas is not installed.")
-
-                     def __len__(self):
-        return self.length().days
