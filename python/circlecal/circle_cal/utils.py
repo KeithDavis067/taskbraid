@@ -1,4 +1,5 @@
 from datetime import datetime, date, timedelta
+from .model import CalendarElement
 
 __all__ = ['date_to_theta', 'events_to_dur',
            'events_to_mid', 'events_to_polar']
@@ -6,7 +7,7 @@ __all__ = ['date_to_theta', 'events_to_dur',
 
 def date_to_theta(d, year=None):
     if year is None:
-        year = Year_Data(datetime.now().year)
+        year = CalendarElement(datetime.now().year)
     try:
         day_to_theta = 360 / len(year)
     except TypeError:

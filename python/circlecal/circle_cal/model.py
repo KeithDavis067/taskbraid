@@ -154,6 +154,15 @@ class CalendarElement:
 
         self._set_ranges()
 
+        print(f"DEBUG: ranges is {self.ranges}")
+
+        for u in self.superunits:
+            try:
+                if (u is not None) or (u not in self.ranges[u]):
+                    raise ValueError(f"{getattr(self, u)} is not a valid {u}. "
+                                     f"Enter a {u} within {self.ranges[u]}.")
+            except KeyError:
+
     def range(self, range):
         return self.ranges[self.subunit]
 
@@ -173,7 +182,7 @@ class CalendarElement:
             if self.ranges[u] is None:
                 match u:
                     case "year":
-                        self.ranges[u] = None
+                        self.ranges[u] = range(date.min, date.max + 1)
                     case "day":
                         try:
                             self.ranges[u] = range(
@@ -228,6 +237,15 @@ class CalendarElement:
             for sub in self:
                 yield from sub.recursive_iter(maxdepth=maxdepth, depth=depth)
 
+    def iter_unit(self, unit):
+        if unit not in self.subunits:
+            raise ValueError("Cannot iterate, no {unit}s in self.unit.")
+        for sub in self:
+            if sub.unit == unit:
+                yield sub
+            else:
+                yield from sub.iter_unit(unit)
+
     def __len__(self):
         return len(list(self.__iter__()))
 
@@ -235,7 +253,20 @@ class CalendarElement:
         return dict(zip(self.ABSUNITS, [getattr(self, u) for u in self.ABSUNITS]))
 
     def __str__(self):
-        return str(self.asdict)
+        return str(self.as_dict())
+
+    def __next__(self):
+        v = self.as_dict()
+        for u in ([self.unit] + list(reversed(self.superunits))):
+            if v[u] + 1 in self.ranges[u]:
+                v[u] = v[u] + 1
+                return self.__class__(**v)
+            else:
+                v[u] = 0
+
+    def end(self):
+        v = self.value()
+        v[self.unit] == v[self.unit] + 1
 
     def date(self):
         """ Return a date object representing the date of this object.
