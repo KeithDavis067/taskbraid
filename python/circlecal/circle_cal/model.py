@@ -91,6 +91,36 @@ def del_end(obj):
     obj._end = None
 
 
+RANGES = {"year": range(date.min, date.max + 1),
+          "month": range(1, 13),
+          "day": range(1, 32),
+          "hour": range(0, 24),
+          "minute": range(0, 60),
+          "second": range(0, 60),
+          "microsecond": range(0, 1000000)}
+
+
+def _set_unit(obj, u, value):
+    if u == "month":
+        if value == 2:
+            try:
+                if obj.year is None:
+                    raise AttributeError()
+                else:
+                    obj.ranges[u] = range(1, monthrange(obj.year, 2)[1]+1)
+            except AttributeError:
+                raise ValueError(
+                    "Cannot determine number of days for February "
+                    "without year value.")
+        else:
+            obj.ranges[u] = range(1, monthrange(2000, value)[1]+1)
+
+    if value in self.ranges[u]:
+        setattr(obj, "_" + u, value)
+    else:
+        raise ValueError(f"{v} is not an allowed value for {u}.")
+
+
 class CalendarElement:
     ABSUNITS = ["year",
                 "month",
@@ -100,12 +130,29 @@ class CalendarElement:
                 "second",
                 "microsecond"]
 
+    RANGES = {"year": range(date.min, date.max + 1),
+              "month": range(1, 13),
+              "day": range(1, 32),
+              "hour": range(0, 24),
+              "minute": range(0, 60),
+              "second": range(0, 60),
+              "microsecond": range(0, 1000000)}
+
     DATEUNITS = ABSUNITS[0:3]
     TIMEUNITS = ABSUNITS[3:]
 
     UNITORDER = dict([(u, i) for i, u in enumerate(reversed(ABSUNITS))])
 
-    @property
+    def _unit_setter(self, u):
+        if
+
+    @ classmethod
+    def _set_unit_props(cls):
+        for u in cls.RANGES:
+            if u is not "month":
+                self.
+
+    @ property
     def unit(self):
         sm = None
         for u in self.ABSUNITS:
@@ -132,7 +179,7 @@ class CalendarElement:
         except IndexError:
             return None
 
-    @property
+    @ property
     def subunit(self):
         su = self.subunits
         if su is None:
@@ -155,13 +202,6 @@ class CalendarElement:
         self._set_ranges()
 
         print(f"DEBUG: ranges is {self.ranges}")
-
-        for u in self.superunits:
-            try:
-                if (u is not None) or (u not in self.ranges[u]):
-                    raise ValueError(f"{getattr(self, u)} is not a valid {u}. "
-                                     f"Enter a {u} within {self.ranges[u]}.")
-            except KeyError:
 
     def range(self, range):
         return self.ranges[self.subunit]
