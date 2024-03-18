@@ -93,14 +93,30 @@ def del_end(obj):
 
 RANGES = {"year": range(date.min, date.max + 1),
           "month": range(1, 13),
-          "day": range(1, 32),
+          "day": None,
           "hour": range(0, 24),
           "minute": range(0, 60),
           "second": range(0, 60),
           "microsecond": range(0, 1000000)}
 
+UNITS = list(RANGES.keys())
+
+
+class UDIGIT:
+    value = property(lambda self: getattr(self, value),
+                     lambda self, value: _set_unit(self, self.unit, value))
+
+    def __init__(self, unit, value=None, parent=None):
+        self.unit = unit
+        self.range = RANGES[unit]
+        self.value = value
+
+    def __iter__(self):
+        ud = self.__iter__
+
 
 def _set_unit(obj, u, value):
+    """ Check value against unit range, and set, setting month range if needed. """
     if u == "month":
         if value == 2:
             try:
@@ -121,8 +137,24 @@ def _set_unit(obj, u, value):
         raise ValueError(f"{v} is not an allowed value for {u}.")
 
 
+def _increment_unit(obj, u):
+    # Store values if we need to reset after fail.
+    v = {}
+    for unit in obj.ranges:
+        v[unit] = getattr(obj, unit)
+
+    try:
+        setattr(obj, u, v + 1)
+    except ValueError:
+        setattr(obj, u, 0)
+        _increment_unit(obj, UNiTORDER[u)
+
+
+class TimeRegister:
+
+
 class CalendarElement:
-    ABSUNITS = ["year",
+    ABSUNITS=["year",
                 "month",
                 "day",
                 "hour",
@@ -130,7 +162,7 @@ class CalendarElement:
                 "second",
                 "microsecond"]
 
-    RANGES = {"year": range(date.min, date.max + 1),
+    RANGES={"year": range(date.min, date.max + 1),
               "month": range(1, 13),
               "day": range(1, 32),
               "hour": range(0, 24),
@@ -138,10 +170,10 @@ class CalendarElement:
               "second": range(0, 60),
               "microsecond": range(0, 1000000)}
 
-    DATEUNITS = ABSUNITS[0:3]
-    TIMEUNITS = ABSUNITS[3:]
+    DATEUNITS=ABSUNITS[0:3]
+    TIMEUNITS=ABSUNITS[3:]
 
-    UNITORDER = dict([(u, i) for i, u in enumerate(reversed(ABSUNITS))])
+    UNITORDER=dict([(u, i) for i, u in enumerate(reversed(ABSUNITS))])
 
     def _unit_setter(self, u):
         if
@@ -154,18 +186,18 @@ class CalendarElement:
 
     @ property
     def unit(self):
-        sm = None
+        sm=None
         for u in self.ABSUNITS:
             try:
                 if getattr(self, u) is not None:
-                    sm = u
+                    sm=u
             except AttributeError:
                 pass
         return sm
 
     @ property
     def subunits(self):
-        idx = self.__class__.ABSUNITS.index(self.unit)
+        idx=self.__class__.ABSUNITS.index(self.unit)
         try:
             return self.__class__.ABSUNITS[idx + 1:]
         except IndexError:
@@ -173,7 +205,7 @@ class CalendarElement:
 
     @ property
     def superunits(self):
-        idx = self.__class__.ABSUNITS.index(self.unit)
+        idx=self.__class__.ABSUNITS.index(self.unit)
         try:
             return self.__class__.ABSUNITS[:idx]
         except IndexError:
@@ -181,7 +213,7 @@ class CalendarElement:
 
     @ property
     def subunit(self):
-        su = self.subunits
+        su=self.subunits
         if su is None:
             return None
         if len(su) == 0:
@@ -207,25 +239,25 @@ class CalendarElement:
         return self.ranges[self.subunit]
 
     def _set_ranges(self):
-        self.ranges = {}
-        ulist = [self.unit]
+        self.ranges={}
+        ulist=[self.unit]
         if self.subunit is not None:
-            ulist = ulist + [self.subunit]
+            ulist=ulist + [self.subunit]
 
         for u in ulist:
             try:
-                self.ranges[u] = range(
+                self.ranges[u]=range(
                     getattr(self, u), getattr(self, u) + 1)
             except (TypeError, AttributeError):
-                self.ranges[u] = None
+                self.ranges[u]=None
         for u in self.ranges:
             if self.ranges[u] is None:
                 match u:
                     case "year":
-                        self.ranges[u] = range(date.min, date.max + 1)
+                        self.ranges[u]=range(date.min, date.max + 1)
                     case "day":
                         try:
-                            self.ranges[u] = range(
+                            self.ranges[u]=range(
                                 1, monthrange(self.year, self.month)[1]+1)
                         except TypeError:
                             if self.year is None:
@@ -234,43 +266,43 @@ class CalendarElement:
                                         "February may occur during iteration."
                                         "Set year to determine number of days.")
                                 else:
-                                    self.ranges[u] = range(
+                                    self.ranges[u]=range(
                                         1, monthrange(2000, self.month)[1]+1)
                             # Defer setting to iteration code.
                             else:
                                 raise ValueError("Cannot determine number of "
                                                  "days if month is not set.")
                     case "month":
-                        self.ranges[u] = range(1, 13)
+                        self.ranges[u]=range(1, 13)
                     case "minute" | "second":
-                        self.ranges[u] = range(0, 60)
+                        self.ranges[u]=range(0, 60)
                     case "hour":
-                        self.ranges[u] = range(0, 24)
+                        self.ranges[u]=range(0, 24)
                     case "microsecond":
-                        self.ranges[u] = range(0, 1000000)
+                        self.ranges[u]=range(0, 1000000)
 
     @ property
     def value(self):
         if self.superunits is not None:
-            units = self.superunits + [self.unit]
+            units=self.superunits + [self.unit]
         else:
-            units = [self.unit]
+            units=[self.unit]
         return dict((u, getattr(self, u)) for u in units)
 
     def __iter__(self):
         try:
             for i in self.ranges[self.subunit]:
-                v = self.value
-                v[self.subunit] = i
+                v=self.value
+                v[self.subunit]=i
                 yield self.__class__(**v)
         except KeyError:
             pass
 
     def recursive_iter(self, maxdepth=3, depth=None):
         if depth is None:
-            depth = 0
+            depth=0
         else:
-            depth = depth + 1
+            depth=depth + 1
         if depth >= maxdepth:
             yield self
         else:
@@ -296,16 +328,16 @@ class CalendarElement:
         return str(self.as_dict())
 
     def __next__(self):
-        v = self.as_dict()
+        v=self.as_dict()
         for u in ([self.unit] + list(reversed(self.superunits))):
             if v[u] + 1 in self.ranges[u]:
-                v[u] = v[u] + 1
+                v[u]=v[u] + 1
                 return self.__class__(**v)
             else:
-                v[u] = 0
+                v[u]=0
 
     def end(self):
-        v = self.value()
+        v=self.value()
         v[self.unit] == v[self.unit] + 1
 
     def date(self):
@@ -412,12 +444,12 @@ class _fakedt:
     """ For testing only. """
 
     def __init__(self):
-        self.year = None
-        self.day = None
-        self.month = None
-        self.minute = None
-        self.second = None
-        self.microsecond = None
+        self.year=None
+        self.day=None
+        self.month=None
+        self.minute=None
+        self.second=None
+        self.microsecond=None
 
     def __radd__(self, other):
         pass
@@ -433,9 +465,9 @@ class _fakedate:
     """ For testing only. """
 
     def __init__(self):
-        self.year = None
-        self.day = None
-        self.month = None
+        self.year=None
+        self.day=None
+        self.month=None
 
     def __radd__(self, other):
         pass
@@ -481,7 +513,7 @@ def test_chrono_kind():
 
 def _date_setter(obj, value, attr="date"):
     # _date_or_dt will raise error if neither.
-    kind = _chrono_kind(obj)
+    kind=_chrono_kind(obj)
     match kind:
         case "date":
             setattr(obj, attr, value)
@@ -509,14 +541,14 @@ def _validate_date_input(value, start=None, end=None, inc="days"):
     No attempt is made to similarly coerce start/end to dates.
 
     """
-    out_of_range = "{date} is in not given range: {start} to {end}"
+    out_of_range="{date} is in not given range: {start} to {end}"
     try:
-        kind = _chrono_kind(value)
-        date = value
+        kind=_chrono_kind(value)
+        date=value
     except TypeError:
         if inc in [days, seconds, microseconds, milliseconds, minutes, hours, weeks]:
-            kwarg = {inc: value}
-            date = start + timedelta(**kwarg)
+            kwarg={inc: value}
+            date=start + timedelta(**kwarg)
             raise ValueError(f"{value} is not a date and cannot be "
                              "coerced to a date with given parameters.")
 
