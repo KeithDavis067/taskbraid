@@ -103,16 +103,53 @@ UNITS = list(RANGES.keys())
 
 
 class UDIGIT:
-    value = property(lambda self: getattr(self, value),
-                     lambda self, value: _set_unit(self, self.unit, value))
+    value = property(lambda self: getattr(self, _value),
+                     lambda self, value: _set_value(self, value))
 
-    def __init__(self, unit, value=None, parent=None):
+    @ property
+    def superunit(self):
+        if self._superunit is not None:
+            return self._superunit
+        self.unit == "year":
+            return None
+        return UNITS[UNITS.index[self.unit]-1]
+
+    @superunit.setter
+    def superunit(self, value):
+        self._superunit = value
+
+    def __init__(self, unit, value=None, superunit=None):
         self.unit = unit
-        self.range = RANGES[unit]
+        self.superunit = superunit
+        _set_range(self)
         self.value = value
 
-    def __iter__(self):
-        ud = self.__iter__
+
+def _set_range(obj):
+    obj.range = RANGES[obj.unit]
+
+    if obj.unit == "day":
+        try:
+            month = self.superunit.month
+        except (AttributeError, TypeError):
+            raise ValueError(
+                "Cannot set range for days if month is not available.")
+        if month == "2":
+            try:
+                year = obj.superunit.superunit.value
+            except (AttributeError, TypeError):
+                raise ValueError(
+                    "Cannot set range for February if year is not available.")
+        else:
+            year = 1999
+
+    if obj.range is None:
+        self.range = range(1, monthrange(year, month)[1]+1)
+
+
+def _set_value(obj, value):
+    if self.value not in self.range:
+        raise ValurError(f"{value} not in {obj.unit} of {obj.superunit}")
 
 
 def _set_unit(obj, u, value):
@@ -149,8 +186,6 @@ def _increment_unit(obj, u):
         setattr(obj, u, 0)
         _increment_unit(obj, UNiTORDER[u)
 
-
-class TimeRegister:
 
 
 class CalendarElement:
