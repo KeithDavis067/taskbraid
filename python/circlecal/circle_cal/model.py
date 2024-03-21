@@ -124,6 +124,25 @@ class UDIGIT:
         _set_range(self)
         self.value = value
 
+    def __getattr__(self, name):
+        if name == self.unit:
+            return self._value
+        else:
+            raise AttributeError(
+                f"'{self.__class__}' has no attribute '{name}'")
+
+    def __iter__(self):
+        newself = self.__class__(self.unit, self.value, self.superunit)
+        newself.itr = iter(newself.range)
+        return newself
+
+    def __next__(self):
+        try:
+            return next(self.itr)
+        except (AttributeError, TypeError):
+            self.itr = iter(self.range)
+            return next(self.itr)
+
 
 def _set_range(obj):
     obj.range = RANGES[obj.unit]
@@ -149,7 +168,8 @@ def _set_range(obj):
 
 def _set_value(obj, value):
     if self.value not in self.range:
-        raise ValurError(f"{value} not in {obj.unit} of {obj.superunit}")
+        raise ValueError(f"{value} not in {obj.unit} of {obj.superunit}")
+    obj._value = value
 
 
 def _set_unit(obj, u, value):
