@@ -120,6 +120,7 @@ class TimeDigit:
 
     @ property
     def superunit(self):
+        """ Return superunit object or string."""
         if self._superunit is not None:
             return self._superunit
         if self.unit == "year":
@@ -128,6 +129,7 @@ class TimeDigit:
 
     @superunit.setter
     def superunit(self, value):
+        """ Set superunit object."""
         try:
             if value.unit == _superunit(self.unit):
                 self._superunit = value
@@ -140,6 +142,10 @@ class TimeDigit:
             else:
                 raise ValueError(f"Incorrect superunit for '{
                                  self.unit}' object.")
+
+    @superunit.deleter
+    def superunit(self):
+        self._superunit = None
 
     @property
     def subunit(self):
@@ -155,6 +161,11 @@ class TimeDigit:
     def subunit(self, value):
         try:
             if value.unit == _subunit(self.unit):
+                if isinstance(value.superunit, str):
+                    value.superunit = self
+                elif value.superunit is not self:
+                    raise ValueError(f"Value superunit '{value.superunit}' is not self '{self}'."
+                                     "Set value superunit to self before assigning.")
                 self._subunit = value
             else:
                 raise ValueError(f"Incorrect subunit for '{
@@ -165,6 +176,10 @@ class TimeDigit:
             else:
                 raise ValueError(f"Incorrect subunit for '{
                                  self.unit}' object.")
+
+    @subunit.deleter
+    def subunit(self):
+        self._subunit = None
 
     def __init__(self, unit, value=None, superunit=None, subunit=None):
         self.unit = unit
@@ -181,9 +196,7 @@ class TimeDigit:
                 f"'{self.__class__}' has no attribute '{name}'")
 
     def __iter__(self):
-        newself = self.__class__(self.unit, self.value, self.superunit)
-        newself.itr = iter(newself.range)
-        return newself
+        return self
 
     def __next__(self):
         try:
@@ -192,9 +205,49 @@ class TimeDigit:
             self.itr = iter(self.range)
             return next(self.itr)
 
+    def as_dict(self):
+        d = {"type": type(self),
+             "unit": self.unit,
+             "value": self.value,
+             "subunit": self.subunit}
+        return d
+
+    def __repr__(self):
+        return str(self.as_dict())
+
 
 class CalendarElement(TimeDigit):
-    pass
+    def __next__(self):
+        try:
+            # If we're already iterating on subunit.
+            self.subunit.value = next(self.subunit.itr)
+        except AttributeError:
+            try:
+                # If we have a subunit, but aren't iterating.
+                self.subunit.itr = iter(self.subunit.range)
+                self.subunit.value = next(self.subunit.itr)
+            except AttributeError:
+                # If our subunit is not an instance, but the string.
+                self.subunit = self.__class__(
+                    unit=self.subunit, superunit=self)
+                self.subunit.itr = iter(self.subunit.range)
+                self.subunit.value = next(self.subunit.itr)
+
+        except TypeError as e:
+            # If subunit is None.
+            raise TypeError(
+                f"{self.unit} has no subunit over which to iterate.") from e
+
+        return self.subunit
+
+    def __iter__(self):
+        return self
+
+    def __len__(self):
+        try:
+            return len(self.subunit.range)
+        except (AttributeError, TypeError):
+            return len(self.__class__(unit=self.subunit, superunit=self))
 
 
 def _set_range(obj):
@@ -206,16 +259,16 @@ def _set_range(obj):
         except (AttributeError, TypeError):
             raise ValueError(
                 "Cannot set range for days if month is not available.")
-        if month == "2":
+        if month == 2:
+            print(month)
             try:
-                year = obj.superunit.superunit.value
+                year = obj.superunit.superunit.year
+                print(year)
             except (AttributeError, TypeError):
                 raise ValueError(
                     "Cannot set range for February if year is not available.")
         else:
             year = 1999
-
-    if obj.range is None:
         obj.range = range(1, monthrange(year, month)[1]+1)
 
 
@@ -223,8 +276,6 @@ def _set_value(obj, value):
     if (value not in obj.range) and (value is not None):
         raise ValueError(f"{value} not in {obj.unit} of {obj.superunit}")
     obj._value = value
-    if obj.value is not None:
-        obj.range = range(obj.value, obj.value + 1)
 
 
 def _quacks_like_a_dt(obj):
