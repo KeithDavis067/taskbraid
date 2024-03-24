@@ -182,6 +182,8 @@ class TimeDigit:
         self._subunit = None
 
     def __init__(self, unit, value=None, superunit=None, subunit=None):
+        if unit not in UNITS:
+            raise TypeError(f"{unit} not one of {UNITS}.")
         self.unit = unit
         self.superunit = superunit
         self.subunit = subunit
@@ -217,6 +219,37 @@ class TimeDigit:
 
 
 class CalendarElement(TimeDigit):
+
+    def __init__(self, **kwargs):
+        params = {}
+        for k in ["unit", "value", "subunit", "superunit"]:
+            try:
+                params[k] = kwargs.pop(k)
+            except KeyError:
+                params[k] = None
+
+        if (params["unit"] is not None) and (params["value"] is None):
+            try:
+                params["value"] = kwargs.pop(params["unit"])
+            except KeyError:
+                pass
+
+        if params["unit"] is None:
+            for u in UNITS:
+                try:
+                    params["unit"] = kwargs.pop(u)
+                    break
+                except KeyError:
+                    pass
+
+        super().__init__(params.pop("unit"), **params)
+
+        if isinstance(self.subunit, str):
+            try:
+                self.subunit = self.__class__(**kwargs)
+            except TypeError:
+                pass
+
     def __next__(self):
         try:
             # If we're already iterating on subunit.
@@ -247,7 +280,7 @@ class CalendarElement(TimeDigit):
         try:
             return len(self.subunit.range)
         except (AttributeError, TypeError):
-            return len(self.__class__(unit=self.subunit, superunit=self))
+            return len(self.__class__(unit=self.subunit, superunit=self).range)
 
 
 def _set_range(obj):
