@@ -191,11 +191,26 @@ class TimeDigit:
         self.value = value
 
     def __getattr__(self, name):
-        if name == self.unit:
-            return self._value
-        else:
+        try:
+            steps = UNITS.index(name) - UNITS.index(self.unit)
+        except ValueError:
             raise AttributeError(
                 f"'{self.__class__}' has no attribute '{name}'")
+
+        su = self
+        while (steps > 0) and (not isinstance(su, str)):
+            su = su.subunit
+            steps = steps - 1
+
+        while (steps < 0) and (not isinstance(su, str)):
+            su = su.superunit
+            steps = steps + 1
+        if not isinstance(su, str):
+            return su.value
+
+        raise AttributeError(
+            f"'{self.__class__}' has no attribute '{name}'. Set sub/superunit "
+            "attribute to define implicit sub/superunits.")
 
     def __iter__(self):
         return self
@@ -237,7 +252,8 @@ class CalendarElement(TimeDigit):
         if params["unit"] is None:
             for u in UNITS:
                 try:
-                    params["unit"] = kwargs.pop(u)
+                    params["value"] = kwargs.pop(u)
+                    params["unit"] = u
                     break
                 except KeyError:
                     pass
@@ -246,7 +262,7 @@ class CalendarElement(TimeDigit):
 
         if isinstance(self.subunit, str):
             try:
-                self.subunit = self.__class__(**kwargs)
+                self.subunit = self.__class__(superunit=self, **kwargs)
             except TypeError:
                 pass
 
