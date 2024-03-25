@@ -233,7 +233,37 @@ class TimeDigit:
         return str(self.as_dict())
 
 
+def _walk(obj, upordown, func):
+    su = obj
+    res = []
+    while su is not None:
+        res.append(func(su))
+        try:
+            match upordown:
+                case "up":
+                    su = su.superunit
+                case "down":
+                    su = su.subunit
+        except (AttributeError, TypeError):
+            su = None
+
+    return res
+
+
 class CalendarElement(TimeDigit):
+    @property
+    def element(self):
+        def retv(su):
+            try:
+                v = self.value
+            except AttributeError:
+                v = None
+        return v
+
+        up = _walk(self, "up", lambda su: return (su.unit, su.value))
+        down = _walk(self, "down", lambda su: return (su.unit, su.value))
+        try:
+            for
 
     def __init__(self, **kwargs):
         params = {}
