@@ -234,7 +234,6 @@ class TimeDigit:
 
 
 def _walk(obj, upordown, func):
-    su = obj
     res = []
     while su is not None:
         res.append(func(su))
@@ -250,20 +249,25 @@ def _walk(obj, upordown, func):
     return res
 
 
+def _retv(su):
+    try:
+        v = su.value
+    except AttributeError:
+        v = None
+
+    return (su.unit, v)
+
+
 class CalendarElement(TimeDigit):
     @property
     def element(self):
-        def retv(su):
-            try:
-                v = self.value
-            except AttributeError:
-                v = None
-        return v
+        us = (_walk(self, "up", _retv) +
+              retv + _walk(self, "down", _retv))
 
-        up = _walk(self, "up", lambda su: return (su.unit, su.value))
-        down = _walk(self, "down", lambda su: return (su.unit, su.value))
-        try:
-            for
+        us = sorted(us, key=lambda x: UNITS.index(x[0]))
+        for u, v in us:
+            if v is None:
+                return us[us.index((u, v))-1][0]
 
     def __init__(self, **kwargs):
         params = {}
