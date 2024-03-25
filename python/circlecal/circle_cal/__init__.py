@@ -1,4 +1,4 @@
-from .model import CalendarElement
+from .model import TimeDigit
 from .utils import *
 
-__all__ = ["CalendarElement", "model", "utils"]
+__all__ = ["TimeDigit", "model", "utils"]

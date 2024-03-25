@@ -91,7 +91,7 @@ def del_end(obj):
     obj._end = None
 
 
-RANGES = {"year": range(date.min, date.max + 1),
+RANGES = {"year": range(date.min.year, date.max.year + 1),
           "month": range(1, 13),
           "day": None,
           "hour": range(0, 24),
@@ -102,276 +102,229 @@ RANGES = {"year": range(date.min, date.max + 1),
 UNITS = list(RANGES.keys())
 
 
-class UDIGIT:
-    value = property(lambda self: getattr(self, value),
-                     lambda self, value: _set_unit(self, self.unit, value))
+def _subunit(unit):
+    if unit == "microsecond":
+        return None
+    return UNITS[UNITS.index(unit) + 1]
 
-    def __init__(self, unit, value=None, parent=None):
+
+def _superunit(unit):
+    if unit == "year":
+        return None
+    return UNITS[UNITS.index(unit) - 1]
+
+
+class TimeDigit:
+    value = property(lambda self: getattr(self, "_value"),
+                     lambda self, value: _set_value(self, value))
+
+    @ property
+    def superunit(self):
+        """ Return superunit object or string."""
+        if self._superunit is not None:
+            return self._superunit
+        if self.unit == "year":
+            return None
+        return _superunit(self.unit)
+
+    @superunit.setter
+    def superunit(self, value):
+        """ Set superunit object."""
+        try:
+            if value.unit == _superunit(self.unit):
+                self._superunit = value
+            else:
+                raise ValueError(f"Incorrect superunit for '{
+                                 self.unit}' object.")
+        except AttributeError:
+            if (value == _superunit(self.unit)) or (value is None):
+                self._superunit = None
+            else:
+                raise ValueError(f"Incorrect superunit for '{
+                                 self.unit}' object.")
+
+    @superunit.deleter
+    def superunit(self):
+        self._superunit = None
+
+    @property
+    def subunit(self):
+        try:
+            if self._subunit is None:
+                return _subunit(self.unit)
+        except AttributeError:
+            self._subunit = None
+            return self.subunit
+        return self._subunit
+
+    @subunit.setter
+    def subunit(self, value):
+        try:
+            if value.unit == _subunit(self.unit):
+                if isinstance(value.superunit, str):
+                    value.superunit = self
+                elif value.superunit is not self:
+                    raise ValueError(f"Value superunit '{value.superunit}' is not self '{self}'."
+                                     "Set value superunit to self before assigning.")
+                self._subunit = value
+            else:
+                raise ValueError(f"Incorrect subunit for '{
+                                 self.unit}' object.")
+        except AttributeError:
+            if (value == _subunit(self.unit)) or (value is None):
+                self._subunit = None
+            else:
+                raise ValueError(f"Incorrect subunit for '{
+                                 self.unit}' object.")
+
+    @subunit.deleter
+    def subunit(self):
+        self._subunit = None
+
+    def __init__(self, unit, value=None, superunit=None, subunit=None):
+        if unit not in UNITS:
+            raise TypeError(f"{unit} not one of {UNITS}.")
         self.unit = unit
-        self.range = RANGES[unit]
+        self.superunit = superunit
+        self.subunit = subunit
+        _set_range(self)
         self.value = value
 
-    def __iter__(self):
-        ud = self.__iter__
-
-
-def _set_unit(obj, u, value):
-    """ Check value against unit range, and set, setting month range if needed. """
-    if u == "month":
-        if value == 2:
-            try:
-                if obj.year is None:
-                    raise AttributeError()
-                else:
-                    obj.ranges[u] = range(1, monthrange(obj.year, 2)[1]+1)
-            except AttributeError:
-                raise ValueError(
-                    "Cannot determine number of days for February "
-                    "without year value.")
-        else:
-            obj.ranges[u] = range(1, monthrange(2000, value)[1]+1)
-
-    if value in self.ranges[u]:
-        setattr(obj, "_" + u, value)
-    else:
-        raise ValueError(f"{v} is not an allowed value for {u}.")
-
-
-def _increment_unit(obj, u):
-    # Store values if we need to reset after fail.
-    v = {}
-    for unit in obj.ranges:
-        v[unit] = getattr(obj, unit)
-
-    try:
-        setattr(obj, u, v + 1)
-    except ValueError:
-        setattr(obj, u, 0)
-        _increment_unit(obj, UNiTORDER[u)
-
-
-class TimeRegister:
-
-
-class CalendarElement:
-    ABSUNITS=["year",
-                "month",
-                "day",
-                "hour",
-                "minute",
-                "second",
-                "microsecond"]
-
-    RANGES={"year": range(date.min, date.max + 1),
-              "month": range(1, 13),
-              "day": range(1, 32),
-              "hour": range(0, 24),
-              "minute": range(0, 60),
-              "second": range(0, 60),
-              "microsecond": range(0, 1000000)}
-
-    DATEUNITS=ABSUNITS[0:3]
-    TIMEUNITS=ABSUNITS[3:]
-
-    UNITORDER=dict([(u, i) for i, u in enumerate(reversed(ABSUNITS))])
-
-    def _unit_setter(self, u):
-        if
-
-    @ classmethod
-    def _set_unit_props(cls):
-        for u in cls.RANGES:
-            if u is not "month":
-                self.
-
-    @ property
-    def unit(self):
-        sm=None
-        for u in self.ABSUNITS:
-            try:
-                if getattr(self, u) is not None:
-                    sm=u
-            except AttributeError:
-                pass
-        return sm
-
-    @ property
-    def subunits(self):
-        idx=self.__class__.ABSUNITS.index(self.unit)
+    def __getattr__(self, name):
         try:
-            return self.__class__.ABSUNITS[idx + 1:]
-        except IndexError:
-            return None
+            steps = UNITS.index(name) - UNITS.index(self.unit)
+        except ValueError:
+            raise AttributeError(
+                f"'{self.__class__}' has no attribute '{name}'")
 
-    @ property
-    def superunits(self):
-        idx=self.__class__.ABSUNITS.index(self.unit)
-        try:
-            return self.__class__.ABSUNITS[:idx]
-        except IndexError:
-            return None
+        su = self
+        while (steps > 0) and (not isinstance(su, str)):
+            su = su.subunit
+            steps = steps - 1
 
-    @ property
-    def subunit(self):
-        su=self.subunits
-        if su is None:
-            return None
-        if len(su) == 0:
-            return None
-        return su[0]
+        while (steps < 0) and (not isinstance(su, str)):
+            su = su.superunit
+            steps = steps + 1
+        if not isinstance(su, str):
+            return su.value
 
-    def __init__(self, **kwargs):
-        if any([k not in self.__class__.ABSUNITS for k in kwargs]):
-            raise TypeError("Element units must be one of: "
-                            f"{self.__class__.ABSUNITS}")
-
-        for u in self.ABSUNITS:
-            try:
-                setattr(self, u, kwargs[u])
-            except KeyError:
-                setattr(self, u, None)
-
-        self._set_ranges()
-
-        print(f"DEBUG: ranges is {self.ranges}")
-
-    def range(self, range):
-        return self.ranges[self.subunit]
-
-    def _set_ranges(self):
-        self.ranges={}
-        ulist=[self.unit]
-        if self.subunit is not None:
-            ulist=ulist + [self.subunit]
-
-        for u in ulist:
-            try:
-                self.ranges[u]=range(
-                    getattr(self, u), getattr(self, u) + 1)
-            except (TypeError, AttributeError):
-                self.ranges[u]=None
-        for u in self.ranges:
-            if self.ranges[u] is None:
-                match u:
-                    case "year":
-                        self.ranges[u]=range(date.min, date.max + 1)
-                    case "day":
-                        try:
-                            self.ranges[u]=range(
-                                1, monthrange(self.year, self.month)[1]+1)
-                        except TypeError:
-                            if self.year is None:
-                                if self.month == 2 or self.month is None:
-                                    raise ValueError(
-                                        "February may occur during iteration."
-                                        "Set year to determine number of days.")
-                                else:
-                                    self.ranges[u]=range(
-                                        1, monthrange(2000, self.month)[1]+1)
-                            # Defer setting to iteration code.
-                            else:
-                                raise ValueError("Cannot determine number of "
-                                                 "days if month is not set.")
-                    case "month":
-                        self.ranges[u]=range(1, 13)
-                    case "minute" | "second":
-                        self.ranges[u]=range(0, 60)
-                    case "hour":
-                        self.ranges[u]=range(0, 24)
-                    case "microsecond":
-                        self.ranges[u]=range(0, 1000000)
-
-    @ property
-    def value(self):
-        if self.superunits is not None:
-            units=self.superunits + [self.unit]
-        else:
-            units=[self.unit]
-        return dict((u, getattr(self, u)) for u in units)
+        raise AttributeError(
+            f"'{self.__class__}' has no attribute '{name}'. Set sub/superunit "
+            "attribute to define implicit sub/superunits.")
 
     def __iter__(self):
-        try:
-            for i in self.ranges[self.subunit]:
-                v=self.value
-                v[self.subunit]=i
-                yield self.__class__(**v)
-        except KeyError:
-            pass
-
-    def recursive_iter(self, maxdepth=3, depth=None):
-        if depth is None:
-            depth=0
-        else:
-            depth=depth + 1
-        if depth >= maxdepth:
-            yield self
-        else:
-            for sub in self:
-                yield from sub.recursive_iter(maxdepth=maxdepth, depth=depth)
-
-    def iter_unit(self, unit):
-        if unit not in self.subunits:
-            raise ValueError("Cannot iterate, no {unit}s in self.unit.")
-        for sub in self:
-            if sub.unit == unit:
-                yield sub
-            else:
-                yield from sub.iter_unit(unit)
-
-    def __len__(self):
-        return len(list(self.__iter__()))
-
-    def as_dict(self):
-        return dict(zip(self.ABSUNITS, [getattr(self, u) for u in self.ABSUNITS]))
-
-    def __str__(self):
-        return str(self.as_dict())
+        return self
 
     def __next__(self):
-        v=self.as_dict()
-        for u in ([self.unit] + list(reversed(self.superunits))):
-            if v[u] + 1 in self.ranges[u]:
-                v[u]=v[u] + 1
-                return self.__class__(**v)
-            else:
-                v[u]=0
+        try:
+            return next(self.itr)
+        except (AttributeError, TypeError):
+            self.itr = iter(self.range)
+            return next(self.itr)
 
-    def end(self):
-        v=self.value()
-        v[self.unit] == v[self.unit] + 1
+    def as_dict(self):
+        d = {"type": type(self),
+             "unit": self.unit,
+             "value": self.value,
+             "subunit": self.subunit}
+        return d
 
-    def date(self):
-        """ Return a date object representing the date of this object.
+    def __repr__(self):
+        return str(self.as_dict())
 
-        If object does not have a defined year, day, and month raises TypeError.
 
-        """
-        return date(**dict([(u, v) for u, v in self.as_dict().items() if
-                            u in self.DATEUNITS]))
+class CalendarElement(TimeDigit):
 
-    def time(self):
-        """ Return a time object representing the time of this object.
+    def __init__(self, **kwargs):
+        params = {}
+        for k in ["unit", "value", "subunit", "superunit"]:
+            try:
+                params[k] = kwargs.pop(k)
+            except KeyError:
+                params[k] = None
 
-        If no time is stored, will return time object called with no values:
-        `time()`
-        """
-        return time(**dict([(u, v) for u, v in self.as_dict().items() if
-                            ((v is not None) and (v in self.TIMEUNITS))]
-                           )
-                    )
+        if (params["unit"] is not None) and (params["value"] is None):
+            try:
+                params["value"] = kwargs.pop(params["unit"])
+            except KeyError:
+                pass
 
-    def datetime(self):
-        return datetime.combine(self.date(), self.time())
+        if params["unit"] is None:
+            for u in UNITS:
+                try:
+                    params["value"] = kwargs.pop(u)
+                    params["unit"] = u
+                    break
+                except KeyError:
+                    pass
 
-    def has_time(self):
-        if any([getattr(self, u) is not None for u in self.TIMEUNITS]):
-            return True
-        return False
+        super().__init__(params.pop("unit"), **params)
 
-    def has_date(self):
-        if any([getattr(self, u) is not None for u in self.DATEUNITS]):
-            return True
-        return False
+        if isinstance(self.subunit, str):
+            try:
+                self.subunit = self.__class__(superunit=self, **kwargs)
+            except TypeError:
+                pass
+
+    def __next__(self):
+        try:
+            # If we're already iterating on subunit.
+            self.subunit.value = next(self.subunit.itr)
+        except AttributeError:
+            try:
+                # If we have a subunit, but aren't iterating.
+                self.subunit.itr = iter(self.subunit.range)
+                self.subunit.value = next(self.subunit.itr)
+            except AttributeError:
+                # If our subunit is not an instance, but the string.
+                self.subunit = self.__class__(
+                    unit=self.subunit, superunit=self)
+                self.subunit.itr = iter(self.subunit.range)
+                self.subunit.value = next(self.subunit.itr)
+
+        except TypeError as e:
+            # If subunit is None.
+            raise TypeError(
+                f"{self.unit} has no subunit over which to iterate.") from e
+
+        return self.subunit
+
+    def __iter__(self):
+        return self
+
+    def __len__(self):
+        try:
+            return len(self.subunit.range)
+        except (AttributeError, TypeError):
+            return len(self.__class__(unit=self.subunit, superunit=self).range)
+
+
+def _set_range(obj):
+    obj.range = RANGES[obj.unit]
+
+    if obj.unit == "day":
+        try:
+            month = obj.superunit.month
+        except (AttributeError, TypeError):
+            raise ValueError(
+                "Cannot set range for days if month is not available.")
+        if month == 2:
+            print(month)
+            try:
+                year = obj.superunit.superunit.year
+                print(year)
+            except (AttributeError, TypeError):
+                raise ValueError(
+                    "Cannot set range for February if year is not available.")
+        else:
+            year = 1999
+        obj.range = range(1, monthrange(year, month)[1]+1)
+
+
+def _set_value(obj, value):
+    if (value not in obj.range) and (value is not None):
+        raise ValueError(f"{value} not in {obj.unit} of {obj.superunit}")
+    obj._value = value
 
 
 def _quacks_like_a_dt(obj):
@@ -444,12 +397,12 @@ class _fakedt:
     """ For testing only. """
 
     def __init__(self):
-        self.year=None
-        self.day=None
-        self.month=None
-        self.minute=None
-        self.second=None
-        self.microsecond=None
+        self.year = None
+        self.day = None
+        self.month = None
+        self.minute = None
+        self.second = None
+        self.microsecond = None
 
     def __radd__(self, other):
         pass
@@ -465,9 +418,9 @@ class _fakedate:
     """ For testing only. """
 
     def __init__(self):
-        self.year=None
-        self.day=None
-        self.month=None
+        self.year = None
+        self.day = None
+        self.month = None
 
     def __radd__(self, other):
         pass
@@ -513,7 +466,7 @@ def test_chrono_kind():
 
 def _date_setter(obj, value, attr="date"):
     # _date_or_dt will raise error if neither.
-    kind=_chrono_kind(obj)
+    kind = _chrono_kind(obj)
     match kind:
         case "date":
             setattr(obj, attr, value)
@@ -523,8 +476,8 @@ def _date_setter(obj, value, attr="date"):
             # This might trash timezone data on dates, so if
             # not local tz we might
             # leave time, but I need to read more about tzinfo first.
-            if (dt.hours, dt.minutes,
-                    dt.seconds, dt.microseconds) == (0, 0, 0, 0):
+            if (obj.hours, obj.minutes,
+                    obj.seconds, obj.microseconds) == (0, 0, 0, 0):
                 setattr(obj, attr, value.date())
             else:
                 setattr(obj, attr, value)
@@ -541,24 +494,26 @@ def _validate_date_input(value, start=None, end=None, inc="days"):
     No attempt is made to similarly coerce start/end to dates.
 
     """
-    out_of_range="{date} is in not given range: {start} to {end}"
+    out_of_range = "{date} is in not given range: {start} to {end}"
     try:
-        kind=_chrono_kind(value)
-        date=value
+        kind = _chrono_kind(value)
+        date = value
     except TypeError:
-        if inc in [days, seconds, microseconds, milliseconds, minutes, hours, weeks]:
-            kwarg={inc: value}
-            date=start + timedelta(**kwarg)
+        if inc in ["days",
+                   "seconds", "microseconds",
+                   "minutes", "hours", "weeks"]:
+            kwarg = {inc: value}
+            date = start + timedelta(**kwarg)
             raise ValueError(f"{value} is not a date and cannot be "
                              "coerced to a date with given parameters.")
 
     if start is not None:
         if not start <= date:
-            raise outofrange.format(**locals())
+            raise out_of_range.format(**locals())
 
         if end is not None:
             if not date < end:
-                raise outofrange.format(**locals())
+                raise out_of_range.format(**locals())
         return date
 
 
@@ -581,7 +536,7 @@ class Event:
 
     @ start.setter
     def start(self, value):
-        _date_setter(obj, value, "start")
+        _date_setter(self, value, "start")
 
     @ property
     def end(self):
@@ -589,4 +544,4 @@ class Event:
 
     @ end.setter
     def start(self, value):
-        _date_setter(obj, value, "end")
+        _date_setter(self, value, "end")
