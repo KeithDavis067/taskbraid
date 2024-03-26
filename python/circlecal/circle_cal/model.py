@@ -235,8 +235,8 @@ class TimeDigit:
 
 def _walk(obj, upordown, func):
     res = []
+    su = obj
     while su is not None:
-        res.append(func(su))
         try:
             match upordown:
                 case "up":
@@ -245,7 +245,10 @@ def _walk(obj, upordown, func):
                     su = su.subunit
         except (AttributeError, TypeError):
             su = None
-
+        try:
+            res.append(func(su))
+        except AttributeError:
+            break
     return res
 
 
@@ -259,15 +262,13 @@ def _retv(su):
 
 
 class CalendarElement(TimeDigit):
-    @property
+    @ property
     def element(self):
         us = (_walk(self, "up", _retv) +
-              retv + _walk(self, "down", _retv))
+              [_retv(self)] + _walk(self, "down", _retv))
 
         us = sorted(us, key=lambda x: UNITS.index(x[0]))
-        for u, v in us:
-            if v is None:
-                return us[us.index((u, v))-1][0]
+        return us[-1][0]
 
     def __init__(self, **kwargs):
         params = {}
@@ -300,21 +301,28 @@ class CalendarElement(TimeDigit):
             except TypeError:
                 pass
 
-    def __next__(self):
-        try:
-            # If we're already iterating on subunit.
+    def get_subunit(self, unit):
+        li = _walk(self, "down", lambda obj: if obj.unit == unit: return obj)
+        for ele in li:
+            if ele is not None:
+                break
+        return ele
+
+    def __iter__(self):
+        obj = self.get_subunit(self.element)
+        obj.itr = iter(obj.range)
+        d = self.as_dict()
+        del d["type"]
+        d[self
+
+            self.subunit.itr = iter(self.subunit.range)
             self.subunit.value = next(self.subunit.itr)
         except AttributeError:
-            try:
-                # If we have a subunit, but aren't iterating.
-                self.subunit.itr = iter(self.subunit.range)
-                self.subunit.value = next(self.subunit.itr)
-            except AttributeError:
-                # If our subunit is not an instance, but the string.
-                self.subunit = self.__class__(
-                    unit=self.subunit, superunit=self)
-                self.subunit.itr = iter(self.subunit.range)
-                self.subunit.value = next(self.subunit.itr)
+            # If our subunit is not an instance, but the string.
+            self.subunit = self.__class__(
+                unit=self.subunit, superunit=self)
+            self.subunit.itr = iter(self.subunit.range)
+            self.subunit.value = next(self.subunit.itr)
 
         except TypeError as e:
             # If subunit is None.
@@ -322,9 +330,6 @@ class CalendarElement(TimeDigit):
                 f"{self.unit} has no subunit over which to iterate.") from e
 
         return self.subunit
-
-    def __iter__(self):
-        return self
 
     def __len__(self):
         try:
@@ -343,10 +348,8 @@ def _set_range(obj):
             raise ValueError(
                 "Cannot set range for days if month is not available.")
         if month == 2:
-            print(month)
             try:
                 year = obj.superunit.superunit.year
-                print(year)
             except (AttributeError, TypeError):
                 raise ValueError(
                     "Cannot set range for February if year is not available.")
