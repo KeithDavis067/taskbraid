@@ -164,7 +164,8 @@ class TimeDigit:
                 if isinstance(value.superunit, str):
                     value.superunit = self
                 elif value.superunit is not self:
-                    raise ValueError(f"Value superunit '{value.superunit}' is not self '{self}'."
+                    raise ValueError(f"Value superunit '{value.superunit}' "
+                        "is not self '{self}'. "
                                      "Set value superunit to self before assigning.")
                 self._subunit = value
             else:
