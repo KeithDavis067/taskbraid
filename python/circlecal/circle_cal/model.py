@@ -114,9 +114,16 @@ def _superunit(unit):
     return UNITS[UNITS.index(unit) - 1]
 
 
+def _get_value(obj):
+    if obj._value.start + 1 == obj._value.stop:
+        return obj._value.start
+    return obj._value
+
+
 class TimeDigit:
-    value = property(lambda self: getattr(self, "_value"),
-                     lambda self, value: _set_value(self, value))
+    value = property(lambda self: _get_value(self),
+                     lambda self, value: _set_value(self, value),
+                     lambda self: _set_value(self, None))
 
     @ property
     def superunit(self):
@@ -191,28 +198,6 @@ class TimeDigit:
         _set_range(self)
         self.value = value
 
-    def __getattr__(self, name):
-        try:
-            steps = UNITS.index(name) - UNITS.index(self.unit)
-        except ValueError:
-            raise AttributeError(
-                f"'{self.__class__}' has no attribute '{name}'")
-
-        su = self
-        while (steps > 0) and (not isinstance(su, str)):
-            su = su.subunit
-            steps = steps - 1
-
-        while (steps < 0) and (not isinstance(su, str)):
-            su = su.superunit
-            steps = steps + 1
-        if not isinstance(su, str):
-            return su.value
-
-        raise AttributeError(
-            f"'{self.__class__}' has no attribute '{name}'. Set sub/superunit "
-            "attribute to define implicit sub/superunits.")
-
     def __iter__(self):
         return self
 
@@ -271,6 +256,28 @@ class CalendarElement(TimeDigit):
         us = sorted(us, key=lambda x: UNITS.index(x[0]))
         return us[-1][0]
 
+    def __getattr__(self, name):
+        try:
+            steps = UNITS.index(name) - UNITS.index(self.unit)
+        except ValueError:
+            raise AttributeError(
+                f"'{self.__class__}' has no attribute '{name}'")
+
+        su = self
+        while (steps > 0) and (not isinstance(su, str)):
+            su = su.subunit
+            steps = steps - 1
+
+        while (steps < 0) and (not isinstance(su, str)):
+            su = su.superunit
+            steps = steps + 1
+        if not isinstance(su, str):
+            return su.value
+
+        raise AttributeError(
+            f"'{self.__class__}' has no attribute '{name}'. Set sub/superunit "
+            "attribute to define implicit sub/superunits.")
+
     def __init__(self, **kwargs):
         params = {}
         for k in ["unit", "value", "subunit", "superunit"]:
@@ -303,7 +310,6 @@ class CalendarElement(TimeDigit):
                 pass
 
     def get_subunit(self, unit):
-        li = _walk(self, "down", lambda obj: if obj.unit == unit: return obj)
         for ele in li:
             if ele is not None:
                 break
@@ -314,10 +320,9 @@ class CalendarElement(TimeDigit):
         obj.itr = iter(obj.range)
         d = self.as_dict()
         del d["type"]
-        d[self
 
-            self.subunit.itr = iter(self.subunit.range)
-            self.subunit.value = next(self.subunit.itr)
+        self.subunit.itr = iter(self.subunit.range)
+        self.subunit.value = next(self.subunit.itr)
         except AttributeError:
             # If our subunit is not an instance, but the string.
             self.subunit = self.__class__(
@@ -362,7 +367,9 @@ def _set_range(obj):
 def _set_value(obj, value):
     if (value not in obj.range) and (value is not None):
         raise ValueError(f"{value} not in {obj.unit} of {obj.superunit}")
-    obj._value = value
+    if value is None:
+        obj._value = self.range
+    obj._value = range(value, value + 1)
 
 
 def _quacks_like_a_dt(obj):
