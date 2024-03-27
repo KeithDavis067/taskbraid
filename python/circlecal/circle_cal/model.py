@@ -114,10 +114,48 @@ def _superunit(unit):
     return UNITS[UNITS.index(unit) - 1]
 
 
+def _set_range(obj):
+    obj.range = RANGES[obj.unit]
+
+    if obj.unit == "day":
+        try:
+            month = obj.superunit.month
+        except (AttributeError, TypeError):
+            raise ValueError(
+                "Cannot set range for days if month is not available.")
+        if month == 2:
+            try:
+                year = obj.superunit.superunit.year
+            except (AttributeError, TypeError):
+                raise ValueError(
+                    "Cannot set range for February if year is not available.")
+        else:
+            year = 1999
+        obj.unit_range = range(1, monthrange(year, month)[1]+1)
+
+
 def _get_value(obj):
     if obj._value.start + 1 == obj._value.stop:
         return obj._value.start
     return obj._value
+
+
+def _value_range(obj):
+    return obj._value
+
+
+def _set_value(obj, value):
+    if (value not in obj.range) and (value is not None):
+        raise ValueError(f"{value} not in {obj.unit} of {obj.superunit}")
+    if value is None:
+        obj._value = self.range
+    else:
+        obj._value = range(value, value + 1)
+
+# TODO: CHange around some definitions, value_range is the full range or the value to value + 1 range.
+# value returns the actual value or None.
+# unit_range returns the possible range for the unit (with the correct choice of 28, 29, 30 or 31 days.)
+#
 
 
 class TimeDigit:
@@ -172,7 +210,7 @@ class TimeDigit:
                     value.superunit = self
                 elif value.superunit is not self:
                     raise ValueError(f"Value superunit '{value.superunit}' "
-                        "is not self '{self}'. "
+                                     "is not self '{self}'. "
                                      "Set value superunit to self before assigning.")
                 self._subunit = value
             else:
@@ -205,7 +243,7 @@ class TimeDigit:
         try:
             return next(self.itr)
         except (AttributeError, TypeError):
-            self.itr = iter(self.range)
+            self.itr = iter(self.value)
             return next(self.itr)
 
     def as_dict(self):
@@ -342,34 +380,6 @@ class CalendarElement(TimeDigit):
             return len(self.subunit.range)
         except (AttributeError, TypeError):
             return len(self.__class__(unit=self.subunit, superunit=self).range)
-
-
-def _set_range(obj):
-    obj.range = RANGES[obj.unit]
-
-    if obj.unit == "day":
-        try:
-            month = obj.superunit.month
-        except (AttributeError, TypeError):
-            raise ValueError(
-                "Cannot set range for days if month is not available.")
-        if month == 2:
-            try:
-                year = obj.superunit.superunit.year
-            except (AttributeError, TypeError):
-                raise ValueError(
-                    "Cannot set range for February if year is not available.")
-        else:
-            year = 1999
-        obj.range = range(1, monthrange(year, month)[1]+1)
-
-
-def _set_value(obj, value):
-    if (value not in obj.range) and (value is not None):
-        raise ValueError(f"{value} not in {obj.unit} of {obj.superunit}")
-    if value is None:
-        obj._value = self.range
-    obj._value = range(value, value + 1)
 
 
 def _quacks_like_a_dt(obj):
