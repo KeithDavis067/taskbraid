@@ -114,8 +114,8 @@ def _superunit(unit):
     return UNITS[UNITS.index(unit) - 1]
 
 
-def _set_range(obj):
-    obj.range = RANGES[obj.unit]
+def _set_unit_range(obj):
+    obj.unit_range = RANGES[obj.unit]
 
     if obj.unit == "day":
         try:
@@ -135,22 +135,14 @@ def _set_range(obj):
 
 
 def _get_value(obj):
-    if obj._value.start + 1 == obj._value.stop:
-        return obj._value.start
-    return obj._value
-
-
-def _value_range(obj):
     return obj._value
 
 
 def _set_value(obj, value):
-    if (value not in obj.range) and (value is not None):
+    if (value not in obj.unit_range) and (value is not None):
         raise ValueError(f"{value} not in {obj.unit} of {obj.superunit}")
-    if value is None:
-        obj._value = self.range
-    else:
-        obj._value = range(value, value + 1)
+    obj._value = value
+
 
 # TODO: CHange around some definitions, value_range is the full range or the value to value + 1 range.
 # value returns the actual value or None.
@@ -162,6 +154,12 @@ class TimeDigit:
     value = property(lambda self: _get_value(self),
                      lambda self, value: _set_value(self, value),
                      lambda self: _set_value(self, None))
+
+    def value_range(obj):
+        try:
+            return range(obj._value, obj._value+1)
+        except TypeError:
+            return range(obj.unit_range)
 
     @ property
     def superunit(self):
@@ -203,25 +201,24 @@ class TimeDigit:
         return self._subunit
 
     @subunit.setter
-    def subunit(self, value):
+    def subunit(self, obj):
         try:
-            if value.unit == _subunit(self.unit):
-                if isinstance(value.superunit, str):
-                    value.superunit = self
-                elif value.superunit is not self:
-                    raise ValueError(f"Value superunit '{value.superunit}' "
-                                     "is not self '{self}'. "
-                                     "Set value superunit to self before assigning.")
-                self._subunit = value
+            if obj.unit == _subunit(self.unit):
+                if isinstance(obj.superunit, str):
+                    obj.superunit = self
+                elif obj.superunit is not self:
+                    raise ValueError("'superunit' attribute on param 'obj'"
+                                     "must be unassigned or this instance.")
+                self._subunit = obj
             else:
-                raise ValueError(f"Incorrect subunit for '{
-                                 self.unit}' object.")
+                raise ValueError(
+                    f"Incorrect subunit for '{self.unit}' object.")
         except AttributeError:
-            if (value == _subunit(self.unit)) or (value is None):
+            if (obj == _subunit(self.unit)) or (obj is None):
                 self._subunit = None
             else:
-                raise ValueError(f"Incorrect subunit for '{
-                                 self.unit}' object.")
+                raise ValueError(f"Incorrect subunit for "
+                                 f'{self.unit}' object.")
 
     @subunit.deleter
     def subunit(self):
@@ -355,7 +352,7 @@ class CalendarElement(TimeDigit):
 
     def __iter__(self):
         obj = self.get_subunit(self.element)
-        obj.itr = iter(obj.range)
+        obj.itr = iter(obj.value_range)
         d = self.as_dict()
         del d["type"]
 
