@@ -326,8 +326,37 @@ def _retv(su):
 
 
 class CalendarElement(TimeDigit):
+    """ A span of time described as a unit part of a particular date and or time.
+
+    A CalendarElement represents a span of time referred to by a unit. 
+    WHen superunit and subunit attributes are assigned to other instances,
+    the combined set of CalendarElements refers a specific unit of time.
+    Iteration returns a CalendarElement for the direct division of that unit,
+    and `len` returns the length of those units.
+
+    Consider a CalendarElement of unit `year` with the value `2024`:
+    Without any other assignment, this refers to the span of time that is the
+    year 2024. let `y = CalendarElement('year', 2024)` then len(y) returns 12, for
+    the 12 months of 2024, and y.subunit returns the string "month".
+
+    By linking a set of CalendarElement instances via assignment to subunits or superunits,
+    a specific date or time can be described. In the previous example, also
+    let `m` = CalendarElement('month', value=1, superunit=y) and 
+    y.superunit = m.
+    Then y and m specify February of 2024, and the length will be properly set as 29 days.
+
+    """
     @ property
     def element(self):
+        """ Return the largest unit with a specified value.
+
+        The string identifying unit the collection of linked CalendarElement instances
+        represent.
+        For instance, if super or sub units of the year, month, and day are
+        assigned values, then on the element attribute of all of these elements
+        will return 'day'.
+        """
+
         us = (_walk(self, "up", _retv) +
               [_retv(self)] + _walk(self, "down", _retv))
 
@@ -357,6 +386,10 @@ class CalendarElement(TimeDigit):
             "attribute to define implicit sub/superunits.")
 
     def __init__(self, **kwargs):
+        """ Initiliase a CalendarElement, automatically assiging subunits if included in kwargs.
+
+
+        """
         params = {}
         for k in ["unit", "value", "subunit", "superunit"]:
             try:
@@ -388,10 +421,12 @@ class CalendarElement(TimeDigit):
                 pass
 
     def get_subunit(self, unit):
-        for ele in li:
-            if ele is not None:
-                break
-        return ele
+        """ Return a reference to the subunit 'unit' in the chain of subunits.
+
+        Walk `self.subunit` to subsequent subunits returning the first
+        with a unit that matches `unit`.
+        """
+        raise NotImplementedError()
 
     def __iter__(self):
         obj = self.get_subunit(self.element)
