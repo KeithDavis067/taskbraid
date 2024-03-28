@@ -151,11 +151,19 @@ def _set_value(obj, value):
 
 
 class TimeDigit:
+    """ A digit that keeps track of super and sub time units.
+
+    """
     value = property(lambda self: _get_value(self),
                      lambda self, value: _set_value(self, value),
                      lambda self: _set_value(self, None))
 
     def value_range(obj):
+        """ Return a range object taking into account the current value.
+
+        If `value` is set, return a range object from `value` to `value+1`.
+        Otherwise return a range object for the whole range of `unit`.
+        """
         try:
             return range(obj._value, obj._value+1)
         except TypeError:
@@ -172,7 +180,10 @@ class TimeDigit:
 
     @superunit.setter
     def superunit(self, value):
-        """ Set superunit object."""
+        """ Set superunit object.
+
+        Checks that superunit object has the correct units before assignment.
+        """
         try:
             if value.unit == _superunit(self.unit):
                 self._superunit = value
@@ -188,10 +199,16 @@ class TimeDigit:
 
     @superunit.deleter
     def superunit(self):
+        """ Remove superunit object.
+
+        Ensures no reference to another object as a superunit.
+        Calls to the `superunit` attribute will still return a string value for the unit.
+        """
         self._superunit = None
 
     @property
     def subunit(self):
+        """ Return a reference to a subunit object or string."""
         try:
             if self._subunit is None:
                 return _subunit(self.unit)
@@ -202,6 +219,7 @@ class TimeDigit:
 
     @subunit.setter
     def subunit(self, obj):
+        """ Ensure param `obj` is the correct subunit and set the attribute."""
         try:
             if obj.unit == _subunit(self.unit):
                 if isinstance(obj.superunit, str):
@@ -222,9 +240,25 @@ class TimeDigit:
 
     @subunit.deleter
     def subunit(self):
+        """ Remove subunit object.
+
+        Ensures no reference to another object as a subunit.
+        Calls to the `subunit` attribute will still return a string value for the unit.
+        """
         self._subunit = None
 
     def __init__(self, unit, value=None, superunit=None, subunit=None):
+        """ TimeDigit constructor.
+
+        Parameters:
+            unit: a string from the list `UNITS`.
+        Keywords:
+            value: None or a number for the value of the unit.
+            superunit: None or a TimeDigit object with the correct unit
+                one step greater than `unit`.
+            subunit: None or a TimeDigit object with the correct unit
+                one step smaller than `unit`.
+        """
         if unit not in UNITS:
             raise TypeError(f"{unit} not one of {UNITS}.")
         self.unit = unit
@@ -252,6 +286,15 @@ class TimeDigit:
 
     def __repr__(self):
         return str(self.as_dict())
+
+    def __str__(self):
+        if len(self.value_range) == 1:
+            match self.unit:
+                case "year":
+                    s = f"{self.value:04}"
+                case _:
+                    s = f"{self.value:02}"
+        return " ".joint(s + [s.unit, "s"])
 
 
 def _walk(obj, upordown, func):
