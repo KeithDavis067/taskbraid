@@ -326,7 +326,7 @@ def _retv(su):
     return (su.unit, v)
 
 
-class CalendarElement(TimeDigit):
+class CalendarElement:
     """ A span of time described as a unit part of a particular date and or time.
 
     A CalendarElement represents a span of time referred to by a unit. 
@@ -361,12 +361,11 @@ class CalendarElement(TimeDigit):
 
     @ property
     def element(self):
-        d = self.flat_chain()
-        for u in reversed(UNITS):
-            try:
-                v = d[u]["value"]
-            except KeyError:
-                pass
+        if self.value is None:
+            return self.unit
+        su = self.subunit
+        while not isinstance(su, str):
+            if su.subunit.range
 
     def flat_chain(self):
         obj = self
@@ -414,7 +413,6 @@ class CalendarElement(TimeDigit):
 
     def __init__(self, **kwargs):
         """ Initiliase a CalendarElement, automatically assiging subunits if included in kwargs.
-
 
         """
         params = {}
