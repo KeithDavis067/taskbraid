@@ -236,7 +236,7 @@ class TimeDigit:
                 self._subunit = None
             else:
                 raise ValueError(f"Incorrect subunit for "
-                                 f'{self.unit}' object.")
+                                 f"'{self.unit}' object.")
 
     @subunit.deleter
     def subunit(self):
@@ -264,7 +264,7 @@ class TimeDigit:
         self.unit = unit
         self.superunit = superunit
         self.subunit = subunit
-        _set_range(self)
+        _set_unit_range(self)
         self.value = value
 
     def __iter__(self):
@@ -281,7 +281,8 @@ class TimeDigit:
         d = {"type": type(self),
              "unit": self.unit,
              "value": self.value,
-             "subunit": self.subunit}
+             "subunit": self.subunit,
+             "superunit": self.superunit}
         return d
 
     def __repr__(self):
@@ -347,7 +348,7 @@ class CalendarElement(TimeDigit):
 
     """
     @ property
-    def element(self):
+    def get_element(self):
         """ Return the largest unit with a specified value.
 
         The string identifying unit the collection of linked CalendarElement instances
@@ -356,19 +357,49 @@ class CalendarElement(TimeDigit):
         assigned values, then on the element attribute of all of these elements
         will return 'day'.
         """
+        raise NotImplementedError()
 
-        us = (_walk(self, "up", _retv) +
-              [_retv(self)] + _walk(self, "down", _retv))
+    @ property
+    def element(self):
+        d = self.flat_chain()
+        for u in reversed(UNITS):
+            try:
+                v = d[u]["value"]
+            except KeyError:
+                pass
 
-        us = sorted(us, key=lambda x: UNITS.index(x[0]))
-        return us[-1][0]
+    def flat_chain(self):
+        obj = self
+        li = []
+        while obj is not None:
+            try:
+                u = obj.unit
+            except AttributeError:
+                break
+            li.append((u, {"value": obj.value,
+                           "superunit": obj.superunit,
+                           "subunit": obj.subunit}))
+            obj = self.superunit
+
+        obj = self.subunit
+        while obj is not None:
+            try:
+                u = obj.unit
+            except AttributeError:
+                break
+            li.append((u, {"value": obj.value,
+                           "superunit": obj.superunit,
+                           "subunit": obj.subunit}))
+            obj = self.subunit
+
+        li.sort(key=lambda ele: UNITS.index(ele[0]))
+        return dict(li)
 
     def __getattr__(self, name):
-        try:
-            steps = UNITS.index(name) - UNITS.index(self.unit)
-        except ValueError:
-            raise AttributeError(
-                f"'{self.__class__}' has no attribute '{name}'")
+        """ Return the value of any sub or supterunit as an attribute."""
+        if name not in UNITS:
+            self.__getattribute__(name)
+        steps = UNITS.index(name) - UNITS.index(self.unit)
 
         su = self
         while (steps > 0) and (not isinstance(su, str)):
@@ -380,10 +411,6 @@ class CalendarElement(TimeDigit):
             steps = steps + 1
         if not isinstance(su, str):
             return su.value
-
-        raise AttributeError(
-            f"'{self.__class__}' has no attribute '{name}'. Set sub/superunit "
-            "attribute to define implicit sub/superunits.")
 
     def __init__(self, **kwargs):
         """ Initiliase a CalendarElement, automatically assiging subunits if included in kwargs.
@@ -420,41 +447,15 @@ class CalendarElement(TimeDigit):
             except TypeError:
                 pass
 
-    def get_subunit(self, unit):
-        """ Return a reference to the subunit 'unit' in the chain of subunits.
-
-        Walk `self.subunit` to subsequent subunits returning the first
-        with a unit that matches `unit`.
-        """
-        raise NotImplementedError()
-
     def __iter__(self):
-        obj = self.get_subunit(self.element)
-        obj.itr = iter(obj.value_range)
-        d = self.as_dict()
-        del d["type"]
-
-        self.subunit.itr = iter(self.subunit.range)
-        self.subunit.value = next(self.subunit.itr)
-        except AttributeError:
-            # If our subunit is not an instance, but the string.
-            self.subunit = self.__class__(
-                unit=self.subunit, superunit=self)
-            self.subunit.itr = iter(self.subunit.range)
-            self.subunit.value = next(self.subunit.itr)
-
-        except TypeError as e:
-            # If subunit is None.
-            raise TypeError(
-                f"{self.unit} has no subunit over which to iterate.") from e
-
-        return self.subunit
+        chain = self.flat_chain()
+        ele = chain[self.element]
+        itr = iter(TimeDigit(ele, superunit=self))
+        yield self.__class__(ele, value=next(itr).value, superunit=self)
 
     def __len__(self):
-        try:
-            return len(self.subunit.range)
-        except (AttributeError, TypeError):
-            return len(self.__class__(unit=self.subunit, superunit=self).range)
+        ele = self.flat_chain()[self.subunit]
+        return len(self.flat_chain()[self.subunit].range)
 
 
 def _quacks_like_a_dt(obj):
