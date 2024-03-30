@@ -194,7 +194,7 @@ class TimeDigit:
             if (value == _superunit(self.unit)) or (value is None):
                 self._superunit = None
             else:
-                raise ValueError(f"Incorrect superunit for '{
+                raise ValueError(f"Incorrect superunit '{value}' for '{
                                  self.unit}' object.")
 
     @superunit.deleter
@@ -329,7 +329,7 @@ def _retv(su):
 class CalendarElement:
     """ A span of time described as a unit part of a particular date and or time.
 
-    A CalendarElement represents a span of time referred to by a unit. 
+    A CalendarElement represents a span of time referred to by a unit.
     WHen superunit and subunit attributes are assigned to other instances,
     the combined set of CalendarElements refers a specific unit of time.
     Iteration returns a CalendarElement for the direct division of that unit,
@@ -342,22 +342,11 @@ class CalendarElement:
 
     By linking a set of CalendarElement instances via assignment to subunits or superunits,
     a specific date or time can be described. In the previous example, also
-    let `m` = CalendarElement('month', value=1, superunit=y) and 
+    let `m` = CalendarElement('month', value=1, superunit=y) and
     y.superunit = m.
     Then y and m specify February of 2024, and the length will be properly set as 29 days.
 
     """
-    @ property
-    def get_element(self):
-        """ Return the largest unit with a specified value.
-
-        The string identifying unit the collection of linked CalendarElement instances
-        represent.
-        For instance, if super or sub units of the year, month, and day are
-        assigned values, then on the element attribute of all of these elements
-        will return 'day'.
-        """
-        raise NotImplementedError()
 
     def __init__(self, **kwargs):
         """ Initiliase a CalendarElement, automatically assiging subunits if included in kwargs.
@@ -365,8 +354,8 @@ class CalendarElement:
         """
         for u in UNITS:
             if u in kwargs:
-                print(u, kwargs)
                 setattr(self, u, kwargs[u])
+                # self.set_digit_by_unit(u, kwargs[u])
 
     @property
     def unit(self):
@@ -376,13 +365,21 @@ class CalendarElement:
                     continue
             except (AttributeError):
                 break
-        return u
+        return UNITS[UNITS.index(u) - 1]
 
+    @ property
     def subunit(self):
         try:
             return UNITS[UNITS.index(self.unit) + 1]
         except IndexError:
             return None
+
+    @ property
+    def superunit(self):
+        if self.unit == "year":
+            return None
+        else:
+            return UNITS[UNITS.index(self.unit) - 1]
 
     def as_dict(self):
         d = {}
@@ -399,46 +396,57 @@ class CalendarElement:
             d[self._state.unit] = next(self._state)
         except AttributeError:
             state = TimeDigit(self.subunit, value=None,
-                              superunit=getattr(self, self.unit.unit))
+                              superunit=getattr(self, self.unit))
             self._state = state
+            d[self._state.unit] = next(self._state)
         yield self.__class__(**d)
 
-
-print("Setting, monkeys.")
-for u in UNITS:
-    print("Applying", u)
-    setattr(CalendarElement, u, property(lambda obj: get_unit_digit(obj, u),
-            lambda obj, value: set_unit_digit(obj, u, value),
-            lambda obj: setattr(obj, u, None)))
-
-
-def get_unit_digit(obj, u):
-    print(u)
-    try:
-        return getattr(obj, "_" + u)
-    except AttributeError as e:
-        raise AttributeError(
-            f"{obj.__class__} instance has no attribute {u}") from e
-
-
-def set_unit_digit(obj, u, value):
-    print(u, value)
-    # Try to set the value of the timedigit.
-    try:
-        getattr(obj, u).value = value
-    # If no timedigit, then if value may be a timedigit.
-    except AttributeError:
+    def get_digit_by_unit(self, u):
         try:
-            if value.unit == u:
-                setattr(obj, "_" + u, value)
-            else:
-                raise ValueError(f"{value} unit does not match {u}")
+            return getattr(self, "_" + u)
+        except AttributeError as e:
+            raise AttributeError(
+                f"{self.__class__} instance has no attribute {u}") from e
+
+    def set_digit_by_unit(self, u, value):
+        print(u, value)
+        # Try to set the value of the timedigit.
+        try:
+            td = getattr(self, u)
+            td.value = value
+        # If no timedigit, then if value may be a timedigit.
         except AttributeError:
             try:
-                setattr(obj, "_" + u, TimeDigit(u, value,
-                        superunit=getattr(obj, UNITS[UNITS.index(u)-1])))
-            except (IndexError, AttributeError):
-                setattr(obj, "_" + u, TimeDigit(u, value))
+                if value.unit == u:
+                    setattr(self, "_" + u, value)
+                else:
+                    raise ValueError(f"{value} unit does not match {u}")
+            except AttributeError:
+                try:
+                    setattr(self, "_" + u, TimeDigit(u, value,
+                            superunit=getattr(self, UNITS[UNITS.index(u)-1])))
+                except (IndexError, AttributeError):
+                    print(f"Setting TimeDigit with no superunit. {u}, {value}")
+                    setattr(self, "_" + u, TimeDigit(u, value))
+
+    def __setattr__(self, name, obj):
+        if name in UNITS:
+            self.set_digit_by_unit(name, obj)
+        else:
+            object.__setattr__(self, name, obj)
+
+    def __getattr__(self, name):
+        print(f"checking if {name} in {UNITS}")
+        if name in UNITS:
+            print(f"Getting {name} from {self}")
+            return self.get_digit_by_unit(name)
+        self.__getattribute__(name)
+
+    def __delattr__(self, name):
+        if name in UNITS:
+            self.set_digit_by_unit(name, None)
+        else:
+            object.__delattr__(self, name)
 
 
 def _quacks_like_a_dt(obj):
