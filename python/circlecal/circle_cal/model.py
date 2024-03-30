@@ -359,13 +359,6 @@ class CalendarElement:
         """
         raise NotImplementedError()
 
-    @classmethod
-    def _set_unit_props(cls):
-        for u in UNITS:
-            setattr(cls, u, property(lambda obj: get_unit_digit(obj, u),
-                    lambda obj, value: set_unit_digit(obj, u, value),
-                    lambda obj: setattr(obj, u, None)))
-
     def __init__(self, **kwargs):
         """ Initiliase a CalendarElement, automatically assiging subunits if included in kwargs.
 
@@ -411,10 +404,16 @@ class CalendarElement:
         yield self.__class__(**d)
 
 
-CalendarElement._set_unit_props()
+print("Setting, monkeys.")
+for u in UNITS:
+    print("Applying", u)
+    setattr(CalendarElement, u, property(lambda obj: get_unit_digit(obj, u),
+            lambda obj, value: set_unit_digit(obj, u, value),
+            lambda obj: setattr(obj, u, None)))
 
 
 def get_unit_digit(obj, u):
+    print(u)
     try:
         return getattr(obj, "_" + u)
     except AttributeError as e:
@@ -423,6 +422,7 @@ def get_unit_digit(obj, u):
 
 
 def set_unit_digit(obj, u, value):
+    print(u, value)
     # Try to set the value of the timedigit.
     try:
         getattr(obj, u).value = value
