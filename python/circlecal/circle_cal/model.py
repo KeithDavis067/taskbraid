@@ -359,101 +359,86 @@ class CalendarElement:
         """
         raise NotImplementedError()
 
-    @ property
-    def element(self):
-        if self.value is None:
-            return self.unit
-        su = self.subunit
-        while not isinstance(su, str):
-            if su.subunit.range
-
-    def flat_chain(self):
-        obj = self
-        li = []
-        while obj is not None:
-            try:
-                u = obj.unit
-            except AttributeError:
-                break
-            li.append((u, {"value": obj.value,
-                           "superunit": obj.superunit,
-                           "subunit": obj.subunit}))
-            obj = self.superunit
-
-        obj = self.subunit
-        while obj is not None:
-            try:
-                u = obj.unit
-            except AttributeError:
-                break
-            li.append((u, {"value": obj.value,
-                           "superunit": obj.superunit,
-                           "subunit": obj.subunit}))
-            obj = self.subunit
-
-        li.sort(key=lambda ele: UNITS.index(ele[0]))
-        return dict(li)
-
-    def __getattr__(self, name):
-        """ Return the value of any sub or supterunit as an attribute."""
-        if name not in UNITS:
-            self.__getattribute__(name)
-        steps = UNITS.index(name) - UNITS.index(self.unit)
-
-        su = self
-        while (steps > 0) and (not isinstance(su, str)):
-            su = su.subunit
-            steps = steps - 1
-
-        while (steps < 0) and (not isinstance(su, str)):
-            su = su.superunit
-            steps = steps + 1
-        if not isinstance(su, str):
-            return su.value
+    @classmethod
+    def _set_unit_props(cls):
+        for u in UNITS:
+            setattr(cls, u, property(lambda obj: get_unit_digit(obj, u),
+                    lambda obj, value: set_unit_digit(obj, u, value),
+                    lambda obj: setattr(obj, u, None)))
 
     def __init__(self, **kwargs):
         """ Initiliase a CalendarElement, automatically assiging subunits if included in kwargs.
 
         """
-        params = {}
-        for k in ["unit", "value", "subunit", "superunit"]:
-            try:
-                params[k] = kwargs.pop(k)
-            except KeyError:
-                params[k] = None
+        for u in UNITS:
+            if u in kwargs:
+                print(u, kwargs)
+                setattr(self, u, kwargs[u])
 
-        if (params["unit"] is not None) and (params["value"] is None):
+    @property
+    def unit(self):
+        for u in UNITS:
             try:
-                params["value"] = kwargs.pop(params["unit"])
-            except KeyError:
+                if getattr(self, u) is not None:
+                    continue
+            except (AttributeError):
+                break
+        return u
+
+    def subunit(self):
+        try:
+            return UNITS[UNITS.index(self.unit) + 1]
+        except IndexError:
+            return None
+
+    def as_dict(self):
+        d = {}
+        for u in UNITS:
+            try:
+                d[u] = getattr(self, u).value
+            except AttributeError:
                 pass
-
-        if params["unit"] is None:
-            for u in UNITS:
-                try:
-                    params["value"] = kwargs.pop(u)
-                    params["unit"] = u
-                    break
-                except KeyError:
-                    pass
-
-        super().__init__(params.pop("unit"), **params)
-
-        if isinstance(self.subunit, str):
-            try:
-                self.subunit = self.__class__(superunit=self, **kwargs)
-            except TypeError:
-                pass
+        return d
 
     def __iter__(self):
-        chain = self.flat_chain()
-        ele = chain[self.element]
-        itr = iter(TimeDigit(ele, superunit=self))
-        yield self.__class__(ele, value=next(itr).value, superunit=self)
+        d = self.as_dict()
+        try:
+            d[self._state.unit] = next(self._state)
+        except AttributeError:
+            state = TimeDigit(self.subunit, value=None,
+                              superunit=getattr(self, self.unit.unit))
+            self._state = state
+        yield self.__class__(**d)
 
-    def __len__(self):
-        ele = self.flat_chain()[self.subunit]
-        return len(self.flat_chain()[self.subunit].range)
+
+CalendarElement._set_unit_props()
+
+
+def get_unit_digit(obj, u):
+    try:
+        return getattr(obj, "_" + u)
+    except AttributeError as e:
+        raise AttributeError(
+            f"{obj.__class__} instance has no attribute {u}") from e
+
+
+def set_unit_digit(obj, u, value):
+    # Try to set the value of the timedigit.
+    try:
+        getattr(obj, u).value = value
+    # If no timedigit, then if value may be a timedigit.
+    except AttributeError:
+        try:
+            if value.unit == u:
+                setattr(obj, "_" + u, value)
+            else:
+                raise ValueError(f"{value} unit does not match {u}")
+        except AttributeError:
+            try:
+                setattr(obj, "_" + u, TimeDigit(u, value,
+                        superunit=getattr(obj, UNITS[UNITS.index(u)-1])))
+            except (IndexError, AttributeError):
+                setattr(obj, "_" + u, TimeDigit(u, value))
 
 
 def _quacks_like_a_dt(obj):
