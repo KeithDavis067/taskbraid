@@ -158,16 +158,17 @@ class TimeDigit:
                      lambda self, value: _set_value(self, value),
                      lambda self: _set_value(self, None))
 
-    def value_range(obj):
-        """ Return a range object taking into account the current value.
+    @ property
+    def value_range(self):
+        """ Return a range selfect taking into account the current value.
 
-        If `value` is set, return a range object from `value` to `value+1`.
-        Otherwise return a range object for the whole range of `unit`.
+        If `value` is set, return a range selfect from `value` to `value+1`.
+        Otherwise return a range selfect for the whole range of `unit`.
         """
         try:
-            return range(obj._value, obj._value+1)
+            return range(self.value, self.value+1)
         except TypeError:
-            return range(obj.unit_range)
+            return self.unit_range
 
     @ property
     def superunit(self):
@@ -271,11 +272,11 @@ class TimeDigit:
         return self
 
     def __next__(self):
-        try:
-            return next(self.itr)
-        except (AttributeError, TypeError):
-            self.itr = iter(self.value)
-            return next(self.itr)
+        if not hasattr(self, "itr"):
+            self.itr = iter(self.value_range)
+
+        self.value = next(self.itr)
+        return self.value
 
     def as_dict(self):
         d = {"type": type(self),
@@ -295,7 +296,7 @@ class TimeDigit:
                     s = f"{self.value:04}"
                 case _:
                     s = f"{self.value:02}"
-        return " ".joint(s + [s.unit, "s"])
+        return s
 
 
 def _walk(obj, upordown, func):
@@ -391,15 +392,16 @@ class CalendarElement:
         return d
 
     def __iter__(self):
-        d = self.as_dict()
         try:
-            d[self._state.unit] = next(self._state)
-        except AttributeError:
-            state = TimeDigit(self.subunit, value=None,
-                              superunit=getattr(self, self.unit))
-            self._state = state
-            d[self._state.unit] = next(self._state)
-        yield self.__class__(**d)
+            while True:
+                if not hasattr(self, "_state"):
+                    self._state = TimeDigit(
+                        self.subunit, value=None, superunit=getattr(self, self.unit))
+                d = self.as_dict()
+                d[self._state.unit] = next(self._state)
+                yield self.__class__(**d)
+        except StopIteration:
+            pass
 
     def get_digit_by_unit(self, u):
         try:
@@ -409,7 +411,6 @@ class CalendarElement:
                 f"{self.__class__} instance has no attribute {u}") from e
 
     def set_digit_by_unit(self, u, value):
-        print(u, value)
         # Try to set the value of the timedigit.
         try:
             td = getattr(self, u)
@@ -426,7 +427,6 @@ class CalendarElement:
                     setattr(self, "_" + u, TimeDigit(u, value,
                             superunit=getattr(self, UNITS[UNITS.index(u)-1])))
                 except (IndexError, AttributeError):
-                    print(f"Setting TimeDigit with no superunit. {u}, {value}")
                     setattr(self, "_" + u, TimeDigit(u, value))
 
     def __setattr__(self, name, obj):
@@ -436,9 +436,7 @@ class CalendarElement:
             object.__setattr__(self, name, obj)
 
     def __getattr__(self, name):
-        print(f"checking if {name} in {UNITS}")
         if name in UNITS:
-            print(f"Getting {name} from {self}")
             return self.get_digit_by_unit(name)
         self.__getattribute__(name)
 
