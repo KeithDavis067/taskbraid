@@ -170,6 +170,8 @@ class TimeDigit:
         except TypeError:
             return self.unit_range
 
+    range = value_range
+
     @ property
     def superunit(self):
         """ Return superunit object or string."""
@@ -302,6 +304,9 @@ class TimeDigit:
                 case _:
                     s = f"{self.value:02}"
         return s
+
+    def __len__(self):
+        return len(self.range)
 
 
 def _walk(obj, upordown, func):
@@ -471,6 +476,36 @@ class CalendarElement:
                 pass
         t = time(**kw)
         return datetime.combine(d, t)
+
+    def __len__(self):
+        try:
+            return len(TimeDigit(self.subunit, superunit=getattr(self, self.unit)))
+        except TypeError as e:
+            raise TypeError(
+                f"Cannot create smaller elements for {self}") from e
+
+    def recursive_iteration(self, unit):
+        try:
+            if UNITS[UNITS.index(unit)] > UNITS[UNITS.index(self.unit)]:
+                raise ValueError(f"{unit} not a subunit of {self.unit}")
+            while self.subunit != unit:
+                sub = next(iter(self))
+                yield from sub.recursive_iteration(unit)
+            else:
+                yield from iter(self)
+        except StopIteration:
+            pass
+
+    @property
+    def start(self):
+        return iter(self)
+
+    @ property
+    def end(self):
+        # End is plus one unit minus next smaller unit.
+        s = self.start + relativedelta(**{self.unit + "s": 1,
+                                          self.subunit + "s": -1})
+        return s
 
 
 def _quacks_like_a_dt(obj):
