@@ -248,6 +248,11 @@ class TimeDigit:
         """
         self._subunit = None
 
+    def __getattr__(self, name):
+        if name == self.unit:
+            return self.value
+        return self.__getattribute__(name)
+
     def __init__(self, unit, value=None, superunit=None, subunit=None):
         """ TimeDigit constructor.
 
@@ -392,16 +397,16 @@ class CalendarElement:
         return d
 
     def __iter__(self):
-        try:
-            while True:
-                if not hasattr(self, "_state"):
-                    self._state = TimeDigit(
-                        self.subunit, value=None, superunit=getattr(self, self.unit))
-                d = self.as_dict()
+        while True:
+            if not hasattr(self, "_state"):
+                self._state = TimeDigit(
+                    self.subunit, value=None, superunit=getattr(self, self.unit))
+            d = self.as_dict()
+            try:
                 d[self._state.unit] = next(self._state)
-                yield self.__class__(**d)
-        except StopIteration:
-            pass
+            except StopIteration:
+                break
+            yield self.__class__(**d)
 
     def get_digit_by_unit(self, u):
         try:
@@ -445,6 +450,27 @@ class CalendarElement:
             self.set_digit_by_unit(name, None)
         else:
             object.__delattr__(self, name)
+
+    def datetime(self):
+        try:
+            year = self.year.value
+            month = self.month.value
+            day = self.day.value
+        except AttributeError as e:
+            raise TypeError(f"Cannot create date if all of '{
+                            UNITS[0:3]}' are not set.")
+        d = date(year, month, day)
+
+        kw = {}
+        for u in UNITS[3:]:
+            try:
+                kw[u] = getattr(self, u).value
+                if kw[u] is None:
+                    kw[u] = 0
+            except AttributeError:
+                pass
+        t = time(**kw)
+        return datetime.combine(d, t)
 
 
 def _quacks_like_a_dt(obj):
