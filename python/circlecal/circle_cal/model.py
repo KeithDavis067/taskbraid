@@ -359,15 +359,6 @@ class CalendarElement:
 
     """
 
-    def __init__(self, **kwargs):
-        """ Initiliase a CalendarElement, automatically assiging subunits if included in kwargs.
-
-        """
-        for u in UNITS:
-            if u in kwargs:
-                setattr(self, u, kwargs[u])
-                # self.set_digit_by_unit(u, kwargs[u])
-
     @property
     def unit(self):
         for u in UNITS:
@@ -377,6 +368,10 @@ class CalendarElement:
             except (AttributeError):
                 break
         return UNITS[UNITS.index(u) - 1]
+
+    @property
+    def value(self):
+        return self.digit.value
 
     @ property
     def subunit(self):
@@ -392,6 +387,25 @@ class CalendarElement:
         else:
             return UNITS[UNITS.index(self.unit) - 1]
 
+    @property
+    def digit(self):
+        return self.get_digit_by_unit(self.unit)
+
+    @ property
+    def subdigit(self):
+        return TimeDigit(self.subunit, value=None, superunit=self.digit)
+
+    def __init__(self, **kwargs):
+        """ Initiliase a CalendarElement, automatically assiging subunits if included in kwargs.
+
+        """
+        for u in UNITS:
+            if u in kwargs:
+                setattr(self, u, kwargs[u])
+                # self.set_digit_by_unit(u, kwargs[u])
+                #
+                #
+
     def as_dict(self):
         d = {}
         for u in UNITS:
@@ -401,17 +415,34 @@ class CalendarElement:
                 pass
         return d
 
-    def __iter__(self):
-        while True:
-            if not hasattr(self, "_state"):
-                self._state = TimeDigit(
-                    self.subunit, value=None, superunit=getattr(self, self.unit))
-            d = self.as_dict()
-            try:
-                d[self._state.unit] = next(self._state)
-            except StopIteration:
-                break
-            yield self.__class__(**d)
+    def __getitem__(self, i):
+        if self.subunit is None:
+            raise TypeError(f"{self.unit} has no members.")
+
+        if self.subunit in ["year", "month", "day"]:
+            j = i + 1
+        else:
+            j = i
+
+        new = self.__class__(**self.as_dict())
+        try:
+            new.set_digit_by_unit(self.subunit, j)
+        except ValueError as e:
+            raise StopIteration from e
+        return new
+
+    # def __iter__(self):
+    #     while True:
+    #         if not hasattr(self, "_state"):
+    #             self._state = TimeDigit(
+    #                 self.subunit, value=None, superunit=getattr(self, self.unit))
+    #         d = self.as_dict()
+    #         try:
+    #             d[self._state.unit] = next(self._state)
+    #         except StopIteration:
+    #             break
+    #         yield self.__class__(**d)
+    #
 
     def get_digit_by_unit(self, u):
         try:
@@ -463,7 +494,7 @@ class CalendarElement:
             day = self.day.value
         except AttributeError as e:
             raise TypeError(f"Cannot create date if all of '{
-                            UNITS[0:3]}' are not set.")
+                            UNITS[0:3]}' are not set.") from e
         d = date(year, month, day)
 
         kw = {}
@@ -479,33 +510,36 @@ class CalendarElement:
 
     def __len__(self):
         try:
-            return len(TimeDigit(self.subunit, superunit=getattr(self, self.unit)))
+            # return llen(TimeDigit(self.subunit, superunit=getattr(self, self.unit)))en(TimeDigit(self.subunit, superunit=getattr(self, self.unit)))
+            return len(self.subdigit.range)
         except TypeError as e:
             raise TypeError(
                 f"Cannot create smaller elements for {self}") from e
 
     def recursive_iteration(self, unit):
-        try:
-            if UNITS[UNITS.index(unit)] > UNITS[UNITS.index(self.unit)]:
-                raise ValueError(f"{unit} not a subunit of {self.unit}")
-            while self.subunit != unit:
-                sub = next(iter(self))
-                yield from sub.recursive_iteration(unit)
-            else:
-                yield from iter(self)
-        except StopIteration:
-            pass
+        if UNITS[UNITS.index(unit)] > UNITS[UNITS.index(self.unit)]:
+            raise ValueError(f"{unit} not a subunit of {self.unit}")
+        sub = self
+        while sub.subunit != unit:
+            sub = self.recursive_iteration(unit)
+        yield from sub
+
+    @ property
+    def range(self):
+        return getattr(self, self.unit).range
 
     @property
     def start(self):
-        return iter(self)
+        return self[0]
 
     @ property
     def end(self):
-        # End is plus one unit minus next smaller unit.
-        s = self.start + relativedelta(**{self.unit + "s": 1,
-                                          self.subunit + "s": -1})
-        return s
+        return self[1]
+
+    def __repr__(self):
+        d = self.as_dict()
+        d["type"] = "CalendarElement"
+        return str(d)
 
 
 def _quacks_like_a_dt(obj):
