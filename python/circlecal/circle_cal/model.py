@@ -191,14 +191,14 @@ class TimeDigit:
             if value.unit == _superunit(self.unit):
                 self._superunit = value
             else:
-                raise ValueError(f"Incorrect superunit for '{
-                                 self.unit}' object.")
+                raise ValueError(f"Incorrect superunit for "
+                                 "'{ self.unit}' object.")
         except AttributeError:
             if (value == _superunit(self.unit)) or (value is None):
                 self._superunit = None
             else:
-                raise ValueError(f"Incorrect superunit '{value}' for '{
-                                 self.unit}' object.")
+                raise ValueError(f"Incorrect superunit '{value}' for "
+                                 "'{ self.unit}' object.")
 
     @superunit.deleter
     def superunit(self):
@@ -373,6 +373,10 @@ class CalendarElement:
     def value(self):
         return self.digit.value
 
+    @value.setter
+    def value(self, value):
+        self.digit.value = value
+
     @ property
     def subunit(self):
         try:
@@ -382,18 +386,14 @@ class CalendarElement:
 
     @ property
     def superunit(self):
-        if self.unit == "year":
-            return None
-        else:
+        try:
             return UNITS[UNITS.index(self.unit) - 1]
+        except IndexError:
+            return None
 
     @property
     def digit(self):
         return self.get_digit_by_unit(self.unit)
-
-    @ property
-    def subdigit(self):
-        return TimeDigit(self.subunit, value=None, superunit=self.digit)
 
     def __init__(self, **kwargs):
         """ Initiliase a CalendarElement, automatically assiging subunits if included in kwargs.
@@ -415,27 +415,35 @@ class CalendarElement:
                 pass
         return d
 
+    def gen_sub_digit(self):
+        return TimeDigit(self.subunit, value=None, superunit=self.digit)
+
+    def gen_sub_element(self):
+        d = self.as_dict()
+        d[self.subunit] = self.gen_sub_digit().range.start
+        return self.__class__(**d, superunit=self.digit)
+
     def __getitem__(self, i):
         if self.subunit is None:
             raise TypeError(f"{self.unit} has no members.")
 
-        if self.subunit in ["year", "month", "day"]:
-            j = i + 1
-        else:
-            j = i
-
-        new = self.__class__(**self.as_dict())
+        # This lets us get the start range for the unit.
+        new = self.gen_sub_element()
         try:
-            new.set_digit_by_unit(self.subunit, j)
+            if i >= 0:
+                new.value = new.range.start + i
+            else:
+                new.value = new.range.stop + i
         except ValueError as e:
-            raise StopIteration from e
+            raise IndexError from e
+
         return new
 
     # def __iter__(self):
     #     while True:
     #         if not hasattr(self, "_state"):
     #             self._state = TimeDigit(
-    #                 self.subunit, value=None, superunit=getattr(self, self.unit))
+    #                 self.gen_sub_digit().subunit, value=None, superunit=getattr(self, self.unit))
     #         d = self.as_dict()
     #         try:
     #             d[self._state.unit] = next(self._state)
@@ -493,8 +501,8 @@ class CalendarElement:
             month = self.month.value
             day = self.day.value
         except AttributeError as e:
-            raise TypeError(f"Cannot create date if all of '{
-                            UNITS[0:3]}' are not set.") from e
+            raise TypeError(f"Cannot create date if all of "
+                            f"'{ UNITS[0:3]}' are not set.") from e
         d = date(year, month, day)
 
         kw = {}
@@ -511,7 +519,7 @@ class CalendarElement:
     def __len__(self):
         try:
             # return llen(TimeDigit(self.subunit, superunit=getattr(self, self.unit)))en(TimeDigit(self.subunit, superunit=getattr(self, self.unit)))
-            return len(self.subdigit.range)
+            return len(self.gen_sub_digit().range)
         except TypeError as e:
             raise TypeError(
                 f"Cannot create smaller elements for {self}") from e
@@ -519,22 +527,24 @@ class CalendarElement:
     def recursive_iteration(self, unit):
         if UNITS[UNITS.index(unit)] > UNITS[UNITS.index(self.unit)]:
             raise ValueError(f"{unit} not a subunit of {self.unit}")
-        sub = self
-        while sub.subunit != unit:
-            sub = self.recursive_iteration(unit)
-        yield from sub
+
+        for sub in self:
+            if sub.unit == unit:
+                yield sub
+            else:
+                yield from sub.recursive_iteration(unit)
 
     @ property
     def range(self):
         return getattr(self, self.unit).range
 
-    @property
+    @ property
     def start(self):
         return self[0]
 
     @ property
     def end(self):
-        return self[1]
+        return self[-1]
 
     def __repr__(self):
         d = self.as_dict()
