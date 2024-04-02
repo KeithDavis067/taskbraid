@@ -25,7 +25,7 @@ def events_to_dur(events):
         dur = events[1:] - events[0:-1]
     except TypeError:
         try:
-            dur = [start - end for start, end in events]
+            dur = [e.end - e.start for e in events]
         except TypeError:
             dur = [start - end for start, end in zip(events[1:], events[:-1])]
     return dur

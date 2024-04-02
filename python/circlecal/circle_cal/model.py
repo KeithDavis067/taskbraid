@@ -139,15 +139,14 @@ def _get_value(obj):
 
 
 def _set_value(obj, value):
+    if value == "start":
+        value = obj.unit_range.start
+    if value in ["stop", "end"]:
+        value = obj.unit_range.stop
+
     if (value not in obj.unit_range) and (value is not None):
         raise ValueError(f"{value} not in {obj.unit} of {obj.superunit}")
     obj._value = value
-
-
-# TODO: CHange around some definitions, value_range is the full range or the value to value + 1 range.
-# value returns the actual value or None.
-# unit_range returns the possible range for the unit (with the correct choice of 28, 29, 30 or 31 days.)
-#
 
 
 class TimeDigit:
@@ -363,11 +362,14 @@ class CalendarElement:
     def unit(self):
         for u in UNITS:
             try:
-                if getattr(self, u) is not None:
-                    continue
-            except (AttributeError):
+                if getattr(self, u) is None:
+                    break
+            except AttributeError:
                 break
-        return UNITS[UNITS.index(u) - 1]
+        if u == "microsecond":
+            return "microsecond"
+        else:
+            return UNITS[UNITS.index(u) - 1]
 
     @property
     def value(self):
@@ -415,12 +417,12 @@ class CalendarElement:
                 pass
         return d
 
-    def gen_sub_digit(self):
-        return TimeDigit(self.subunit, value=None, superunit=self.digit)
+    def gen_sub_digit(self, value=None):
+        return TimeDigit(self.subunit, value=value, superunit=self.digit)
 
-    def gen_sub_element(self):
+    def gen_sub_element(self, value=None):
         d = self.as_dict()
-        d[self.subunit] = self.gen_sub_digit().range.start
+        d[self.subunit] = self.gen_sub_digit(value=value).range.start
         return self.__class__(**d, superunit=self.digit)
 
     def __getitem__(self, i):
@@ -538,9 +540,16 @@ class CalendarElement:
     def range(self):
         return getattr(self, self.unit).range
 
+    def _set_all_to_start(self):
+        # As each subunit gets a value then the subunits will increment.
+        while self.subunit is not None:
+            self.set_digit_by_unit(self.subunit, self.gen_sub_digit("start"))
+        return self
+
     @ property
     def start(self):
-        return self[0]
+        new = (self.__class__(**self.as_dict()))._set_all_to_start()
+        return new
 
     @ property
     def end(self):
@@ -701,8 +710,10 @@ def _date_setter(obj, value, attr="date"):
             # This might trash timezone data on dates, so if
             # not local tz we might
             # leave time, but I need to read more about tzinfo first.
-            if (obj.hours, obj.minutes,
-                    obj.seconds, obj.microseconds) == (0, 0, 0, 0):
+            if (obj.hours,
+                obj.minutes,
+                obj.seconds,
+                    obj.microseconds) == (0, 0, 0, 0):
                 setattr(obj, attr, value.date())
             else:
                 setattr(obj, attr, value)
