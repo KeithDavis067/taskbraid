@@ -159,10 +159,10 @@ class TimeDigit:
 
     @ property
     def value_range(self):
-        """ Return a range selfect taking into account the current value.
+        """ Return a range from the current value to max value.
 
-        If `value` is set, return a range selfect from `value` to `value+1`.
-        Otherwise return a range selfect for the whole range of `unit`.
+        If `value` is set, return a range from `value` to `value+1`.
+        Otherwise return a range for the whole range of `unit`.
         """
         try:
             return range(self.value, self.value+1)
@@ -339,22 +339,27 @@ def _retv(su):
 class CalendarElement:
     """ A span of time described as a unit part of a particular date and or time.
 
-    A CalendarElement represents a span of time referred to by a unit.
-    WHen superunit and subunit attributes are assigned to other instances,
-    the combined set of CalendarElements refers a specific unit of time.
+    A CalendarElement represents a unit of time that can be place on a calendar.
     Iteration returns a CalendarElement for the direct division of that unit,
-    and `len` returns the length of those units.
+    and `len` returns the number of those units in this element.
 
     Consider a CalendarElement of unit `year` with the value `2024`:
     Without any other assignment, this refers to the span of time that is the
     year 2024. let `y = CalendarElement('year', 2024)` then len(y) returns 12, for
     the 12 months of 2024, and y.subunit returns the string "month".
 
-    By linking a set of CalendarElement instances via assignment to subunits or superunits,
-    a specific date or time can be described. In the previous example, also
-    let `m` = CalendarElement('month', value=1, superunit=y) and
-    y.superunit = m.
-    Then y and m specify February of 2024, and the length will be properly set as 29 days.
+    For any unit with an assigned value, it will have a TimeDigit object
+    accessible by the get_digit_by_unit attribute. The above CalendarElement
+    with the year value assigned as 2024 will have a TimeDigit assiged
+    the unit `year` and value `2024`. The TimeDigit instances keep track
+    of what value each unit has been assigned, and what values are possible
+    given other unit values. So a CalendarElement with the `year` assigned as
+    `2024` and the month assigned as `2` for February, will "know" that the 
+    allowed day values are 1-29. It will raise an error if an attempt is made to
+    assign the day to 30, for example. 
+
+    Iteration returns 
+
 
     """
 
@@ -504,7 +509,7 @@ class CalendarElement:
             day = self.day.value
         except AttributeError as e:
             raise TypeError(f"Cannot create date if all of "
-                            f"'{ UNITS[0:3]}' are not set.") from e
+                            f"'{UNITS[0:3]}' are not set.") from e
         d = date(year, month, day)
 
         kw = {}
