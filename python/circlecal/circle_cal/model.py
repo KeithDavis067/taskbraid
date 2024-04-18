@@ -14,15 +14,12 @@ try:
 except ImportError:
     pass
 
-# TODO: Add event class. Recase Year_Data as and "event" class and add make
-# Year_Data a subclass.
-
 
 def get_duration(obj):
     if obj._duration is not None:
         return obj._duration
     try:
-        return obj.end - obj.start
+        return obj.stop - obj.start
     except TypeError:
         return None
 
@@ -36,8 +33,8 @@ def set_duration(obj, value):
         # Enforce internal duration storage.
         obj._duration = value
         if obj._start is not None:
-            obj._end = None
-        elif obj._end is not None:
+            obj._stop = None
+        elif obj._stop is not None:
             obj._start = None
 
 
@@ -46,7 +43,7 @@ def get_start(obj):
         return obj._start
 
     try:
-        return obj._end - obj._duration
+        return obj._stop - obj._duration
     except TypeError:
         return None
 
@@ -56,19 +53,19 @@ def set_start(obj, value):
         del obj.start
     else:
         obj._start = value
-        if obj._end is not None:
+        if obj._stop is not None:
             obj._duration = None
 
 
 def del_start(obj):
     if obj._duration is None:
-        obj._duration = obj._end - obj._start
+        obj._duration = obj._stop - obj._start
     obj._start = None
 
 
-def get_end(obj):
-    if obj._end is not None:
-        return obj._end
+def get_stop(obj):
+    if obj._stop is not None:
+        return obj._stop
 
     try:
         return obj._start + obj._duration
@@ -76,18 +73,18 @@ def get_end(obj):
         return None
 
 
-def set_end(obj, value):
+def set_stop(obj, value):
     if value is None:
-        del obj.end
+        del obj.stop
     else:
-        obj._end = value
+        obj._stop = value
         if obj._start is not None:
             obj._duration = None
 
 
-def del_end(obj):
+def del_stop(obj):
     if obj._duration is None:
-        obj._duration = obj._end - obj._start
+        obj._duration = obj._stop - obj._start
     obj._end = None
 
 
@@ -150,7 +147,7 @@ def _set_value(obj, value):
 
 
 class TimeDigit:
-    """ A digit that keeps track of super and sub time units.
+    """ A digit for a unit of time, that is aware of greater and smaller units.
 
     """
     value = property(lambda self: _get_value(self),
@@ -190,8 +187,8 @@ class TimeDigit:
             if value.unit == _superunit(self.unit):
                 self._superunit = value
             else:
-                raise ValueError(f"Incorrect superunit for "
-                                 "'{ self.unit}' object.")
+                raise ValueError("Incorrect superunit for "
+                                 f"'{self.unit}' object.")
         except AttributeError:
             if (value == _superunit(self.unit)) or (value is None):
                 self._superunit = None
@@ -204,7 +201,9 @@ class TimeDigit:
         """ Remove superunit object.
 
         Ensures no reference to another object as a superunit.
-        Calls to the `superunit` attribute will still return a string value for the unit.
+        Calls to the `superunit` attribute will still return a string
+        of the unit value or None.
+        or None.
         """
         self._superunit = None
 
@@ -337,9 +336,10 @@ def _retv(su):
 
 
 class CalendarElement:
-    """ A span of time described as a unit part of a particular date and or time.
+    """ A span of time described as a unit part of a date and or time.
 
-    A CalendarElement represents a unit of time that can be place on a calendar.
+    A CalendarElement represents a unit of time that can be placed on a
+    calendar.
     Iteration returns a CalendarElement for the direct division of that unit,
     and `len` returns the number of those units in this element.
 
@@ -366,15 +366,6 @@ class CalendarElement:
     @property
     def unit(self):
         for u in UNITS:
-            try:
-                if getattr(self, u) is None:
-                    break
-            except AttributeError:
-                break
-        if u == "microsecond":
-            return "microsecond"
-        else:
-            return UNITS[UNITS.index(u) - 1]
 
     @property
     def value(self):
@@ -484,6 +475,15 @@ class CalendarElement:
                             superunit=getattr(self, UNITS[UNITS.index(u)-1])))
                 except (IndexError, AttributeError):
                     setattr(self, "_" + u, TimeDigit(u, value))
+
+    def get_value_by_unit(self, u):
+        try:
+            return self.get_digit_by_unit(u).value
+        except AttributeError:
+            return None
+
+    def set_value_by_unit(self, u, value):
+        self.set_digit_by_unit(u, value)
 
     def __setattr__(self, name, obj):
         if name in UNITS:
