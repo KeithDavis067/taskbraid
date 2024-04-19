@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, date, time
 from dateutil.parser import parse
 from dateutil.relativedelta import relativedelta
 from calendar import monthrange, month_name, day_name
+from collections import namedtuple
 try:
     import pandas as pd
 except ImportError:
@@ -98,17 +99,42 @@ RANGES = {"year": range(date.min.year, date.max.year + 1),
 
 UNITS = list(RANGES.keys())
 
+# UTrip = namedtuple(["superunit", "unit", "subunit"])
+# UNITS = []
+# for i, u in enumerate(RANGES):
+#     try:
+#         sub = list(RANGES.keys())[i+1]
+#     except IndexError:
+#         sub = None
+#     try:
+#         sup = list(RANGES.keys())[i-1]
+#     except IndexError:
+#         sup = None
+#     UNITS.append(UTrip(sup, u, sub))
+
 
 def _subunit(unit):
-    if unit == "microsecond":
+    if unit == UNITS[-1]:
         return None
     return UNITS[UNITS.index(unit) + 1]
 
 
+def _subunits(unit):
+    if unit == UNITS[-1]:
+        return []
+    return UNITS[UNITS.index(u) + 1:]
+
+
 def _superunit(unit):
-    if unit == "year":
+    if unit == UNITS[0]:
         return None
     return UNITS[UNITS.index(unit) - 1]
+
+
+def _superunits(unit):
+    if unit == UNITS[0]:
+        return []
+    return UNITS.reverse()[UNITS.reverse().index(unit) + 1:]
 
 
 def _set_unit_range(obj):
@@ -354,18 +380,43 @@ class CalendarElement:
     the unit `year` and value `2024`. The TimeDigit instances keep track
     of what value each unit has been assigned, and what values are possible
     given other unit values. So a CalendarElement with the `year` assigned as
-    `2024` and the month assigned as `2` for February, will "know" that the 
+    `2024` and the month assigned as `2` for February, will "know" that the
     allowed day values are 1-29. It will raise an error if an attempt is made to
-    assign the day to 30, for example. 
+    assign the day to 30, for example.
 
-    Iteration returns 
+    Iteration returns
 
 
     """
 
+    RANGES = RANGES
+    UNITS = UNITS
+
     @property
     def unit(self):
+        # If we hit a None return the previous unit.
+        # If not, then we must be at "microsecond."
+        # If year isn't set, we will return None.
         for u in UNITS:
+            for dig in self.digits:
+                try:
+                    if self.digits[u] is None:
+                        raise KeyError
+                except KeyError:
+                    return _superunit(u)
+        return "microsecond"
+
+    @property
+    def digit(self):
+        return getattr(self, self.unit)
+
+    @digit.setter
+    def digit(self, value):
+        self.digit.value = value
+
+    @digit.deleter
+    def digit(self):
+        delattr(self, self.unit)
 
     @property
     def value(self):
@@ -377,32 +428,68 @@ class CalendarElement:
 
     @ property
     def subunit(self):
-        try:
-            return UNITS[UNITS.index(self.unit) + 1]
-        except IndexError:
-            return None
+        return _subunit(self.unit)
 
     @ property
     def superunit(self):
-        try:
-            return UNITS[UNITS.index(self.unit) - 1]
-        except IndexError:
-            return None
+        return _superunit(self.superunit)
 
-    @property
-    def digit(self):
-        return self.get_digit_by_unit(self.unit)
+    def __setattr__(self, name, obj):
+        if name in UNITS:
+            self.set_unit(name, obj)
+        else:
+            object.__setattr__(self, name, obj)
+
+    def __getattr__(self, name):
+        if name in self.digits:
+            return self.get_unit(name)
+
+        self.__getattribute__(name)
+
+    def __delattr__(self, name):
+        if name in self.digits:
+            del self.digits[name]
+        else:
+            object.__delattr__(self, name)
+
+    def set_unit(self, unit, value):
+        if value is None:
+            for u in [unit] + _subunits(u):
+                del digits[unit]
+            try:
+                self.digits[_superunit(u)].subunit = None
+            except (AttributeError, KeyError):
+                pass
+        # TODO: Finish This.
+
+    def get_unit(self, u):
+        return self.digits[u]
 
     def __init__(self, **kwargs):
-        """ Initiliase a CalendarElement, automatically assiging subunits if included in kwargs.
+        """ Initiliase with values from unit kwargs.
 
         """
-        for u in UNITS:
-            if u in kwargs:
-                setattr(self, u, kwargs[u])
-                # self.set_digit_by_unit(u, kwargs[u])
-                #
-                #
+        U = self.__class__.UNITS
+        self.digits = {}
+        for u in U:
+            try:
+                v = kwargs[u]
+            except KeyError:
+                # Do nothing if no value passed for u.
+                continue
+            # If no superunit, then skip check.
+            if _superunit(u) is None:
+                self.digits[u] = TimeDigit(u, value=v)
+            # If superunit, verify su exists.
+            # If it's value isn't acceptable, TimeDigit should catch it.
+            else:
+                try:
+                    self.digits[u] = TimeDigit(
+                        u, value=v, superunit=self.digits[_superunit[u]])
+                    self.digits[_superunit[u]].subunit = self.digits[u]
+                except KeyError as e:
+                    raise TypeError(f"Cannot set {u} "
+                                    f"without setting {_superunit(u)}.") from e
 
     def as_dict(self):
         d = {}
@@ -437,91 +524,10 @@ class CalendarElement:
 
         return new
 
-    # def __iter__(self):
-    #     while True:
-    #         if not hasattr(self, "_state"):
-    #             self._state = TimeDigit(
-    #                 self.gen_sub_digit().subunit, value=None, superunit=getattr(self, self.unit))
-    #         d = self.as_dict()
-    #         try:
-    #             d[self._state.unit] = next(self._state)
-    #         except StopIteration:
-    #             break
-    #         yield self.__class__(**d)
-    #
-
-    def get_digit_by_unit(self, u):
-        try:
-            return getattr(self, "_" + u)
-        except AttributeError as e:
-            raise AttributeError(
-                f"{self.__class__} instance has no attribute {u}") from e
-
-    def set_digit_by_unit(self, u, value):
-        # Try to set the value of the timedigit.
-        try:
-            td = getattr(self, u)
-            td.value = value
-        # If no timedigit, then if value may be a timedigit.
-        except AttributeError:
-            try:
-                if value.unit == u:
-                    setattr(self, "_" + u, value)
-                else:
-                    raise ValueError(f"{value} unit does not match {u}")
-            except AttributeError:
-                try:
-                    setattr(self, "_" + u, TimeDigit(u, value,
-                            superunit=getattr(self, UNITS[UNITS.index(u)-1])))
-                except (IndexError, AttributeError):
-                    setattr(self, "_" + u, TimeDigit(u, value))
-
-    def get_value_by_unit(self, u):
-        try:
-            return self.get_digit_by_unit(u).value
-        except AttributeError:
-            return None
-
-    def set_value_by_unit(self, u, value):
-        self.set_digit_by_unit(u, value)
-
-    def __setattr__(self, name, obj):
-        if name in UNITS:
-            self.set_digit_by_unit(name, obj)
-        else:
-            object.__setattr__(self, name, obj)
-
-    def __getattr__(self, name):
-        if name in UNITS:
-            return self.get_digit_by_unit(name)
-        self.__getattribute__(name)
-
-    def __delattr__(self, name):
-        if name in UNITS:
-            self.set_digit_by_unit(name, None)
-        else:
-            object.__delattr__(self, name)
-
     def datetime(self):
-        try:
-            year = self.year.value
-            month = self.month.value
-            day = self.day.value
-        except AttributeError as e:
-            raise TypeError(f"Cannot create date if all of "
-                            f"'{UNITS[0:3]}' are not set.") from e
-        d = date(year, month, day)
-
-        kw = {}
-        for u in UNITS[3:]:
-            try:
-                kw[u] = getattr(self, u).value
-                if kw[u] is None:
-                    kw[u] = 0
-            except AttributeError:
-                pass
-        t = time(**kw)
-        return datetime.combine(d, t)
+        rd = relativedelta(**self.as_dict())
+        d = date(1, 1, 1)
+        return d + rd
 
     def __len__(self):
         try:
@@ -557,7 +563,7 @@ class CalendarElement:
         return new
 
     @ property
-    def end(self):
+    def stop(self):
         return self[-1]
 
     def __repr__(self):
