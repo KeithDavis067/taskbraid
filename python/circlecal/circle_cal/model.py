@@ -494,8 +494,8 @@ class CalendarElement:
                 # IF we're setting a value without setting all the in between first.
                 try:
                     if self.digits[_superunit(unit)].value is None:
-                        raise AttributeError
-                except AttributeError:
+                        raise KeyError
+                except (KeyError, TypeError):
                     dt = self.datetime() + relativedelta(**{unit + "s": v})
 
                     for u in UNITS:
@@ -506,14 +506,17 @@ class CalendarElement:
                     # IF we've set it this way we're done.
                     return
                 # If we aren't at "year" but have all inbetween units set.
-                td = TimeDigit(unit, value=value,
+                td = TimeDigit(unit, value=v,
                                superunit=self.digits[_superunit(unit)])
             else:
-                td = TimeDigit(unit, value=value)
-        try:
-            td.subunit = self.digits[_subunit(unit)]
-        except KeyError:
-            pass
+                td = TimeDigit(unit, value=v)
+
+        if td.subunit is not None:
+            try:
+                self.digits[_subunit(unit)].superunit = td
+                td.subunit = self.digits[_subunit(unit)]
+            except KeyError:
+                pass
         self.digits[unit] = td
 
     def get_unit(self, u):
