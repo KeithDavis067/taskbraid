@@ -122,7 +122,7 @@ def _subunit(unit):
 def _subunits(unit):
     if unit == UNITS[-1]:
         return []
-    return UNITS[UNITS.index(u) + 1:]
+    return UNITS[UNITS.index(unit) + 1:]
 
 
 def _superunit(unit):
@@ -594,20 +594,19 @@ class CalendarElement:
     def range(self):
         return getattr(self, self.unit).range
 
-    def _set_all_to_start(self):
-        # As each subunit gets a value then the subunits will increment.
-        while self.subunit is not None:
-            self.set_digit_by_unit(self.subunit, self.gen_sub_digit("start"))
-        return self
-
     @ property
     def start(self):
-        new = (self.__class__(**self.as_dict()))._set_all_to_start()
+        new = self.__class__(**self.as_dict())
+        if new.unit != UNITS[-1]:
+            setattr(new, UNITS[-1], RANGES[UNITS[-1]].stop)
         return new
 
     @ property
     def stop(self):
-        return self[-1]
+        new = self.__class__(**self.as_dict())
+        for u in _subunits(self.unit):
+            setattr(new, u, getattr(self, u).range.stop)
+        return new
 
     def __repr__(self):
         d = self.as_dict()
