@@ -497,7 +497,7 @@ class CalendarElement:
                         raise KeyError
                 except (KeyError, TypeError):
                     dt = self.datetime() + relativedelta(**{unit + "s": v})
-
+                    print(dt)
                     for u in UNITS:
                         try:
                             self.set_unit(u, getattr(dt, u))
@@ -595,17 +595,23 @@ class CalendarElement:
         return getattr(self, self.unit).range
 
     @ property
+    def subunit_range(self):
+        if self.subunit is None:
+            return None
+        return TimeDigit(self.unit, superunit=self).range
+
+    @ property
     def start(self):
         new = self.__class__(**self.as_dict())
         if new.unit != UNITS[-1]:
-            setattr(new, UNITS[-1], RANGES[UNITS[-1]].stop)
+            setattr(new, UNITS[-1], RANGES[UNITS[-1]].start)
         return new
 
     @ property
     def stop(self):
         new = self.__class__(**self.as_dict())
         for u in _subunits(self.unit):
-            setattr(new, u, getattr(self, u).range.stop)
+            setattr(new, u, getattr(new, new.superunit).subunit_range.stop)
         return new
 
     def __repr__(self):
