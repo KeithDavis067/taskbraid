@@ -394,25 +394,31 @@ class CalendarElement:
 
     @property
     def unit(self):
+        """ Return the unit this instance represents.
+
+        If the top level is not set then return "none".
+        """
         # If we hit a None return the previous unit.
         # If not, then we must be at "microsecond."
         # If year isn't set, we will return None.
         for u in UNITS:
-            for dig in self.digits:
-                try:
-                    if self.digits[u] is None:
-                        raise KeyError
-                except KeyError:
-                    return _superunit(u)
+            try:
+                if self.digits[u] is None:
+                    raise KeyError
+            except KeyError:
+                return _superunit(u)
         return "microsecond"
 
     @property
     def digit(self):
+        """ Return the TimeDigit object for self.unit."""
+        if self.unit is None:
+            return None
         return getattr(self, self.unit)
 
     @digit.setter
     def digit(self, value):
-        self.digit.value = value
+        setattr(self, self.unit, value)
 
     @digit.deleter
     def digit(self):
@@ -441,8 +447,10 @@ class CalendarElement:
             object.__setattr__(self, name, obj)
 
     def __getattr__(self, name):
-        if name in self.digits:
+        try:
             return self.get_unit(name)
+        except KeyError:
+            pass
 
         self.__getattribute__(name)
 
@@ -453,14 +461,60 @@ class CalendarElement:
             object.__delattr__(self, name)
 
     def set_unit(self, unit, value):
+        """ Set a value or a TimeDigit to a unit.
+
+        Implementation note: This function accesses unit
+        attributes directly, not through getattr. All other
+        methods use setattr when assigning which is passed to this
+        method.
+
+        """
+        # If we're doing a delete operation.
         if value is None:
-            for u in [unit] + _subunits(u):
-                del digits[unit]
+            for u in [unit] + _subunits(unit):
+                del self.digits[unit]
             try:
                 self.digits[_superunit(u)].subunit = None
             except (AttributeError, KeyError):
                 pass
-        # TODO: Finish This.
+        # If we're setting a value.
+        else:
+            try:
+                # Timedigits must match the unit we're assigning to.
+                if value.unit == unit:
+                    v = value.value
+                else:
+                    raise TypeError("value unit must match unit string.")
+            # Catch if we have no unit attr.
+            except AttributeError:
+                v = value
+
+            # If we aren't at "year".
+            if _superunit(unit) is not None:
+                # IF we're setting a value without setting all the in between first.
+                try:
+                    if self.digits[_superunit(unit)].value is None:
+                        raise AttributeError
+                except AttributeError:
+                    dt = self.datetime() + relativedelta(**{unit + "s": v})
+
+                    for u in UNITS:
+                        try:
+                            self.set_unit(u, getattr(dt, u))
+                        except AttributeError:
+                            pass
+                    # IF we've set it this way we're done.
+                    return
+                # If we aren't at "year" but have all inbetween units set.
+                td = TimeDigit(unit, value=value,
+                               superunit=self.digits[_superunit(unit)])
+            else:
+                td = TimeDigit(unit, value=value)
+        try:
+            td.subunit = self.digits[_subunit(unit)]
+        except KeyError:
+            pass
+        self.digits[unit] = td
 
     def get_unit(self, u):
         return self.digits[u]
@@ -469,27 +523,13 @@ class CalendarElement:
         """ Initiliase with values from unit kwargs.
 
         """
-        U = self.__class__.UNITS
         self.digits = {}
-        for u in U:
+        for u in UNITS:
             try:
-                v = kwargs[u]
+                self.set_unit(u, kwargs[u])
             except KeyError:
                 # Do nothing if no value passed for u.
                 continue
-            # If no superunit, then skip check.
-            if _superunit(u) is None:
-                self.digits[u] = TimeDigit(u, value=v)
-            # If superunit, verify su exists.
-            # If it's value isn't acceptable, TimeDigit should catch it.
-            else:
-                try:
-                    self.digits[u] = TimeDigit(
-                        u, value=v, superunit=self.digits[_superunit[u]])
-                    self.digits[_superunit[u]].subunit = self.digits[u]
-                except KeyError as e:
-                    raise TypeError(f"Cannot set {u} "
-                                    f"without setting {_superunit(u)}.") from e
 
     def as_dict(self):
         d = {}
