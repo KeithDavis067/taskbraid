@@ -185,7 +185,7 @@ class TimeDigit:
     def value_range(self):
         """ Return a range from the current value to max value.
 
-        If `value` is set, return a range from `value` to `value+1`.
+        If `value` is set, return a range from `value` to end of range.
         Otherwise return a range for the whole range of `unit`.
         """
         try:
@@ -619,8 +619,7 @@ class CalendarElement:
     @ property
     def stop(self):
         new = self.__class__(**self.as_dict())
-        for u in _subunits(self.unit):
-            setattr(new, u, getattr(new, new.superunit).subunit_range.stop)
+        new
         return new
 
     def __repr__(self):
