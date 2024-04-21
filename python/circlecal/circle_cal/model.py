@@ -134,7 +134,8 @@ def _superunit(unit):
 def _superunits(unit):
     if unit == UNITS[0]:
         return []
-    return UNITS.reverse()[UNITS.reverse().index(unit) + 1:]
+    ru = list(reversed(UNITS))
+    return ru[ru.index(unit) + 1:]
 
 
 def _set_unit_range(obj):
@@ -505,12 +506,12 @@ class CalendarElement:
                         raise KeyError
                 except (KeyError, TypeError):
                     dt = self.datetime() + relativedelta(**{unit + "s": v})
-                    print(dt)
-                    for u in UNITS:
+                    print(unit)
+                    for u in _superunits(unit):
                         try:
                             self.set_unit(u, getattr(dt, u))
                         except AttributeError:
-                            pass
+                            self.set_unit(u, 0)
                     # IF we've set it this way we're done.
                     return
                 # If we aren't at "year" but have all inbetween units set.
