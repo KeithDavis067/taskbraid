@@ -197,29 +197,31 @@ class TimeDigit:
     @ property
     def superunit(self):
         """ Return superunit object or string."""
-        if self._superunit is not None:
-            return self._superunit
-        if self.unit == "year":
-            return None
-        return _superunit(self.unit)
+        try:
+            if self._superunit is not None:
+                return self._superunit
+            else:
+                return _superunit(self.unit)
+        except AttributeError:
+            return _superunit(self.unit)
 
     @superunit.setter
-    def superunit(self, value):
+    def superunit(self, obj):
         """ Set superunit object.
 
         Checks that superunit object has the correct units before assignment.
         """
         try:
-            if value.unit == _superunit(self.unit):
-                self._superunit = value
+            if obj.unit == _superunit(self.unit):
+                self._superunit = obj
             else:
                 raise ValueError("Incorrect superunit for "
                                  f"'{self.unit}' object.")
         except AttributeError:
-            if (value == _superunit(self.unit)) or (value is None):
+            if (obj == _superunit(self.unit)) or (obj is None):
                 self._superunit = None
             else:
-                raise ValueError(f"Incorrect superunit '{value}' for "
+                raise ValueError(f"Incorrect superunit '{obj}' for "
                                  "'{ self.unit}' object.")
 
     @superunit.deleter
@@ -237,12 +239,12 @@ class TimeDigit:
     def subunit(self):
         """ Return a reference to a subunit object or string."""
         try:
-            if self._subunit is None:
+            if self._subunit is not None:
+                return self._subunit
+            else:
                 return _subunit(self.unit)
         except AttributeError:
-            self._subunit = None
-            return self.subunit
-        return self._subunit
+            return _subunit(self.unit)
 
     @subunit.setter
     def subunit(self, obj):
@@ -318,7 +320,13 @@ class TimeDigit:
         return d
 
     def __repr__(self):
-        return str(self.as_dict())
+        d = self.as_dict()
+        # This avoids infinite recursion.
+        if not isinstance(d["superunit"], str):
+            d["superunit"] = object.__repr__(self.superunit)
+        if not isinstance(d["subunit"], str):
+            d["subunit"] = object.__repr__(self.subunit)
+        return str(d)
 
     def __str__(self):
         if len(self.value_range) == 1:
