@@ -308,8 +308,8 @@ class TimeDigit:
     def __next__(self):
         if not hasattr(self, "itr"):
             self.itr = iter(self.value_range)
-
         self.value = next(self.itr)
+
         return self.value
 
     def as_dict(self):
@@ -445,9 +445,13 @@ class CalendarElement:
     def subunit(self):
         return _subunit(self.unit)
 
+    def subunits(self): return _subunits(self.unit)
+
     @ property
     def superunit(self):
         return _superunit(self.superunit)
+
+    def superunits(self): return _superunits(self.unit)
 
     def __setattr__(self, name, obj):
         if name in UNITS:
@@ -619,8 +623,14 @@ class CalendarElement:
     @ property
     def stop(self):
         new = self.__class__(**self.as_dict())
-        new
+        if new.subunit is not None:
+            if new.su
+
         return new
+
+    def my_next(self):
+        if self.subunit is not None:
+            for u in reversed(self.superunits)
 
     def __repr__(self):
         d = self.as_dict()
