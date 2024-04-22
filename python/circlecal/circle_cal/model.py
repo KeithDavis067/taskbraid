@@ -138,7 +138,7 @@ def _superunits(unit):
     return ru[ru.index(unit) + 1:]
 
 
-def _set_unit_range(obj):
+def _unit_range(obj):
     obj.unit_range = RANGES[obj.unit]
 
     if obj.unit == "day":
@@ -155,7 +155,7 @@ def _set_unit_range(obj):
                     "Cannot set range for February if year is not available.")
         else:
             year = 1999
-        obj.unit_range = range(1, monthrange(year, month)[1]+1)
+        return range(1, monthrange(year, month)[1]+1)
 
 
 def _get_value(obj):
@@ -182,20 +182,6 @@ class TimeDigit:
                      lambda self: _set_value(self, None))
 
     @ property
-    def value_range(self):
-        """ Return a range from the current value to max value.
-
-        If `value` is set, return a range from `value` to end of range.
-        Otherwise return a range for the whole range of `unit`.
-        """
-        try:
-            return range(self.value, self.value+1)
-        except TypeError:
-            return self.unit_range
-
-    range = value_range
-
-    @ property
     def superunit(self):
         """ Return superunit object or string."""
         try:
@@ -214,16 +200,21 @@ class TimeDigit:
         """
         try:
             if obj.unit == _superunit(self.unit):
+                if isinstance(obj.subunit, str):
+                    obj._subunit = self
+                elif obj.subunit is not self:
+                    raise ValueError("'subunit' attribute on param 'obj'"
+                                     "must be unassigned or this instance.")
                 self._superunit = obj
             else:
-                raise ValueError("Incorrect superunit for "
-                                 f"'{self.unit}' object.")
+                raise ValueError(
+                    f"Incorrect superunit for '{self.unit}' object.")
         except AttributeError:
             if (obj == _superunit(self.unit)) or (obj is None):
                 self._superunit = None
             else:
-                raise ValueError(f"Incorrect superunit '{obj}' for "
-                                 "'{ self.unit}' object.")
+                raise ValueError(f"Incorrect superunit for "
+                                 f"'{self.unit}' object.")
 
     @superunit.deleter
     def superunit(self):
@@ -277,6 +268,13 @@ class TimeDigit:
         """
         self._subunit = None
 
+    @property
+    def start(self):
+        return self.range.start
+
+    def stop(self):
+        return self.range.stop
+
     def __getattr__(self, name):
         if name == self.unit:
             return self.value
@@ -299,18 +297,25 @@ class TimeDigit:
         self.unit = unit
         self.superunit = superunit
         self.subunit = subunit
-        _set_unit_range(self)
+        self.unit_range = _unit_range(self)
+        self.range = self.unit_range
         self.value = value
 
     def __iter__(self):
         return self
 
     def __next__(self):
-        if not hasattr(self, "itr"):
-            self.itr = iter(self.value_range)
-        self.value = next(self.itr)
-
-        return self.value
+        try:
+            if self.value is None:
+                v = self.range.start
+            else:
+                v = self.value + 1
+        except AttributeError:
+            v = self.range.start
+        try:
+            self.value = v
+        except ValueError:
+            raise StopIteration
 
     def as_dict(self):
         d = {"type": type(self),
@@ -330,16 +335,26 @@ class TimeDigit:
         return str(d)
 
     def __str__(self):
-        if len(self.value_range) == 1:
-            match self.unit:
-                case "year":
-                    s = f"{self.value:04}"
-                case _:
-                    s = f"{self.value:02}"
+        try:
+            if self.value is None:
+                v = self.start
+            else:
+                v = self.value
+        except AttributeError:
+            v = self.start
+
+        match self.unit:
+            case year:
+                s = f"{v:04}"
+            case _:
+                s = f"{v:02}"
         return s
 
     def __len__(self):
-        return len(self.range)
+        try:
+            return self.value - self.start
+        except (AttributeError, TypeError):
+            return self.stop - self.start
 
 
 def _walk(obj, upordown, func):
@@ -370,6 +385,70 @@ def _retv(su):
     return (su.unit, v)
 
 
+def _setunitattr(obj, name, obj):
+    if name in UNITS:
+        obj.set_unit(name, obj)
+    else:
+        object.__setattr__(obj, name, obj)
+
+
+def _getunitattr(obj, name):
+    try:
+        return obj.get_unit(name)
+    except KeyError:
+        pass
+
+    obj.__getattribute__(name)
+
+
+def _delunitattr(obj, name):
+    if name in obj.digits:
+        del obj.digits[name]
+    else:
+        object.__delattr__(obj, name)
+
+
+class TimeRegister:
+    __get__attr__ = _getunitattr
+    __set__attr__ = _setunitattr
+    __del__attr__ = _delunitattr
+
+    def __init__(self, largest=None, smallest=None):
+        units = UNITS
+        if largest is not None:
+            units = units[units.index(largest):]
+        if smallest is not None:
+            units = units[:units.index(smallest)]
+
+        self.digits = {}
+        for u in units:
+            if _superunit(u) is None:
+                self.digits[u] = TimeDigit(u)
+            else:
+                self.digits[u] = TimeDigit(
+                    u, superunit=self.digits[_superunit(u)])
+
+    def get_unit(self, u):
+        return self.digits[u]
+
+    def __next__(self):
+        i = len(UNITS)-1
+        while i >= 0:
+            try:
+                self.digits[UNITS[u]].value += 1
+            except TypeError:
+                self.digits[UNITS[u]].value = self.digits[UNITS[u].value].start
+            except KeyError:
+                i = i - 1
+            except StopIteration as e:
+                if i != 0:
+                    continue
+                else:
+                    raise StopIteration from e
+
+        return self.digits[UNITS[u]].value
+
+
 class CalendarElement:
     """ A span of time described as a unit part of a date and or time.
 
@@ -378,10 +457,10 @@ class CalendarElement:
     Iteration returns a CalendarElement for the direct division of that unit,
     and `len` returns the number of those units in this element.
 
-    Consider a CalendarElement of unit `year` with the value `2024`:
+    Consider a CalendarElement of unit `year` with the vngealue `2024`:
     Without any other assignment, this refers to the span of time that is the
     year 2024. let `y = CalendarElement('year', 2024)` then len(y) returns 12, for
-    the 12 months of 2024, and y.subunit returns the string "month".
+    the 12 months of 2024, and y.tsubunit returns the string "month".
 
     For any unit with an assigned value, it will have a TimeDigit object
     accessible by the get_digit_by_unit attribute. The above CalendarElement
@@ -401,7 +480,7 @@ class CalendarElement:
     RANGES = RANGES
     UNITS = UNITS
 
-    @property
+    @ property
     def unit(self):
         """ Return the unit this instance represents.
 
@@ -418,26 +497,26 @@ class CalendarElement:
                 return _superunit(u)
         return "microsecond"
 
-    @property
+    @ property
     def digit(self):
         """ Return the TimeDigit object for self.unit."""
         if self.unit is None:
             return None
         return getattr(self, self.unit)
 
-    @digit.setter
+    @ digit.setter
     def digit(self, value):
         setattr(self, self.unit, value)
 
-    @digit.deleter
+    @ digit.deleter
     def digit(self):
         delattr(self, self.unit)
 
-    @property
+    @ property
     def value(self):
         return self.digit.value
 
-    @value.setter
+    @ value.setter
     def value(self, value):
         self.digit.value = value
 
@@ -452,26 +531,6 @@ class CalendarElement:
         return _superunit(self.superunit)
 
     def superunits(self): return _superunits(self.unit)
-
-    def __setattr__(self, name, obj):
-        if name in UNITS:
-            self.set_unit(name, obj)
-        else:
-            object.__setattr__(self, name, obj)
-
-    def __getattr__(self, name):
-        try:
-            return self.get_unit(name)
-        except KeyError:
-            pass
-
-        self.__getattribute__(name)
-
-    def __delattr__(self, name):
-        if name in self.digits:
-            del self.digits[name]
-        else:
-            object.__delattr__(self, name)
 
     def set_unit(self, unit, value):
         """ Set a value or a TimeDigit to a unit.
@@ -534,6 +593,10 @@ class CalendarElement:
 
     def get_unit(self, u):
         return self.digits[u]
+
+    __get__attr__ = _getunitattr
+    __set__attr__ = _setunitattr
+    __del__attr__ = _delunitattr
 
     def __init__(self, **kwargs):
         """ Initiliase with values from unit kwargs.
@@ -622,7 +685,7 @@ class CalendarElement:
 
     @ property
     def stop(self):
-        new = self.__class__(**self.as_dict())
+        new = TimeRegister(
         if new.subunit is not None:
             if new.su
 
@@ -633,8 +696,8 @@ class CalendarElement:
             for u in reversed(self.superunits)
 
     def __repr__(self):
-        d = self.as_dict()
-        d["type"] = "CalendarElement"
+        d=self.as_dict()
+        d["type"]="CalendarElement"
         return str(d)
 
 
@@ -708,12 +771,12 @@ class _fakedt:
     """ For testing only. """
 
     def __init__(self):
-        self.year = None
-        self.day = None
-        self.month = None
-        self.minute = None
-        self.second = None
-        self.microsecond = None
+        self.year=None
+        self.day=None
+        self.month=None
+        self.minute=None
+        self.second=None
+        self.microsecond=None
 
     def __radd__(self, other):
         pass
@@ -729,9 +792,9 @@ class _fakedate:
     """ For testing only. """
 
     def __init__(self):
-        self.year = None
-        self.day = None
-        self.month = None
+        self.year=None
+        self.day=None
+        self.month=None
 
     def __radd__(self, other):
         pass
@@ -777,7 +840,7 @@ def test_chrono_kind():
 
 def _date_setter(obj, value, attr="date"):
     # _date_or_dt will raise error if neither.
-    kind = _chrono_kind(obj)
+    kind=_chrono_kind(obj)
     match kind:
         case "date":
             setattr(obj, attr, value)
@@ -807,16 +870,16 @@ def _validate_date_input(value, start=None, end=None, inc="days"):
     No attempt is made to similarly coerce start/end to dates.
 
     """
-    out_of_range = "{date} is in not given range: {start} to {end}"
+    out_of_range="{date} is in not given range: {start} to {end}"
     try:
-        kind = _chrono_kind(value)
-        date = value
+        kind=_chrono_kind(value)
+        date=value
     except TypeError:
         if inc in ["days",
                    "seconds", "microseconds",
                    "minutes", "hours", "weeks"]:
-            kwarg = {inc: value}
-            date = start + timedelta(**kwarg)
+            kwarg={inc: value}
+            date=start + timedelta(**kwarg)
             raise ValueError(f"{value} is not a date and cannot be "
                              "coerced to a date with given parameters.")
 
