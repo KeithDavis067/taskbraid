@@ -89,6 +89,7 @@ def del_stop(obj):
     obj._end = None
 
 
+# Start CalendeElement Material
 RANGES = {"year": range(date.min.year, date.max.year + 1),
           "month": range(1, 13),
           "day": None,
@@ -119,10 +120,21 @@ def _subunit(unit):
     return UNITS[UNITS.index(unit) + 1]
 
 
+def test_subunit():
+    assert _subunit("year") == "month"
+    assert _subunit("microsecond") is None
+
+
 def _subunits(unit):
     if unit == UNITS[-1]:
         return []
     return UNITS[UNITS.index(unit) + 1:]
+
+
+def test_subunits():
+    assert _subunits("second") == ["microsecond"]
+    assert _subunits("minute") == ["second", "microsecond"]
+    assert _subunits("microsecond") == []
 
 
 def _superunit(unit):
@@ -131,11 +143,22 @@ def _superunit(unit):
     return UNITS[UNITS.index(unit) - 1]
 
 
+def test_superunit():
+    assert _superunit("year") is None
+    assert _superunit("microsecond") == "second"
+
+
 def _superunits(unit):
     if unit == UNITS[0]:
         return []
     ru = list(reversed(UNITS))
     return ru[ru.index(unit) + 1:]
+
+
+def test_superunits():
+    assert _superunits("month") == ["year"]
+    assert _superunits("day") == ["month", "year"]
+    assert _superunits("year") == []
 
 
 def _unit_range(obj):
