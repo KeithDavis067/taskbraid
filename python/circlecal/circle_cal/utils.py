@@ -1,5 +1,5 @@
 from datetime import datetime, date, timedelta
-from .model import TimeDigit
+from .model import TimeDigit, CalendarElement
 
 __all__ = ['date_to_theta', 'events_to_dur',
            'events_to_mid', 'events_to_polar']
