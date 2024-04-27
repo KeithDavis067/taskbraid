@@ -162,12 +162,13 @@ def test_superunits():
 
 
 def _unit_range(obj):
-    obj.unit_range = RANGES[obj.unit]
-
     if obj.unit == "day":
         try:
             month = obj.superunit.month
         except (AttributeError, TypeError):
+            raise ValueError(
+                "Cannot set range for days if month is not available.")
+        if month is None:
             raise ValueError(
                 "Cannot set range for days if month is not available.")
         if month == 2:
@@ -179,6 +180,7 @@ def _unit_range(obj):
         else:
             year = 1999
         return range(1, monthrange(year, month)[1]+1)
+    return RANGES[obj.unit]
 
 
 def _get_value(obj):
@@ -338,7 +340,12 @@ class TimeDigit:
         try:
             self.value = v
         except ValueError:
-            raise StopIteration
+            try:
+                next(self.superunit)
+                self.value = self.range.start
+            except ValueError:
+                raise StopIteration
+        return self.value
 
     def as_dict(self):
         d = {"type": type(self),
@@ -367,7 +374,7 @@ class TimeDigit:
             v = self.start
 
         match self.unit:
-            case year:
+            case "year":
                 s = f"{v:04}"
             case _:
                 s = f"{v:02}"
@@ -408,11 +415,11 @@ def _retv(su):
     return (su.unit, v)
 
 
-def _setunitattr(obj, name, obj):
+def _setunitattr(obj, name, value):
     if name in UNITS:
-        obj.set_unit(name, obj)
+        obj.set_unit(name, value)
     else:
-        object.__setattr__(obj, name, obj)
+        object.__setattr__(obj, name, value)
 
 
 def _getunitattr(obj, name):
@@ -432,44 +439,49 @@ def _delunitattr(obj, name):
 
 
 class TimeRegister:
-    __get__attr__ = _getunitattr
-    __set__attr__ = _setunitattr
-    __del__attr__ = _delunitattr
+    __getattr__ = _getunitattr
+    __setattr__ = _setunitattr
+    __delattr__ = _delunitattr
 
-    def __init__(self, largest=None, smallest=None):
-        units = UNITS
-        if largest is not None:
-            units = units[units.index(largest):]
-        if smallest is not None:
-            units = units[:units.index(smallest)]
-
+    def __init__(self, **kwargs):
         self.digits = {}
-        for u in units:
-            if _superunit(u) is None:
-                self.digits[u] = TimeDigit(u)
+        for u in UNITS:
+            if u in kwargs:
+                try:
+                    self.digits[u] = TimeDigit(
+                        u, kwargs[u], superunit=self.digits[_superunit(u)])
+                except KeyError:
+                    self.digits[u] = TimeDigit(u, kwargs[u])
             else:
-                self.digits[u] = TimeDigit(
-                    u, superunit=self.digits[_superunit(u)])
+                if (any([un in self.digits.keys() for un in _superunits(u)]) and
+                        any([un in kwargs for un in _subunits(u)])):
+                    self.digits[u] = TimeDigit(
+                        u, value="start", superunit=self.digits[_superunit(u)])
 
     def get_unit(self, u):
         return self.digits[u]
 
-    def __next__(self):
-        i = len(UNITS)-1
-        while i >= 0:
-            try:
-                self.digits[UNITS[u]].value += 1
-            except TypeError:
-                self.digits[UNITS[u]].value = self.digits[UNITS[u].value].start
-            except KeyError:
-                i = i - 1
-            except StopIteration as e:
-                if i != 0:
-                    continue
-                else:
-                    raise StopIteration from e
+    def datetime(self):
+        rd = relativedelta(**self.as_dict())
+        d = date(1, 1, 1)
+        return d + rd
 
-        return self.digits[UNITS[u]].value
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        units = list(self.digits.keys())
+        next(self.digits[units[-1]])
+        return self
+
+    def as_dict(self):
+        d = dict()
+        for u in self.digits:
+            d[u] = self.digits[u].value
+        return d
+
+    def __str__(self):
+        return str(self.datetime())
 
 
 class CalendarElement:
@@ -617,9 +629,9 @@ class CalendarElement:
     def get_unit(self, u):
         return self.digits[u]
 
-    __get__attr__ = _getunitattr
-    __set__attr__ = _setunitattr
-    __del__attr__ = _delunitattr
+    __getattr__ = _getunitattr
+    __setattr__ = _setunitattr
+    __delattr__ = _delunitattr
 
     def __init__(self, **kwargs):
         """ Initiliase with values from unit kwargs.
@@ -703,24 +715,19 @@ class CalendarElement:
     def start(self):
         new = self.__class__(**self.as_dict())
         if new.unit != UNITS[-1]:
-            setattr(new, UNITS[-1], RANGES[UNITS[-1]].start)
+            new.digits[self.subunit] = TimeDigit(
+                self.subunit, "start", superunit=new.digits[self.unit])
         return new
 
     @ property
     def stop(self):
-        new = TimeRegister(
-        if new.subunit is not None:
-            if new.su
-
-        return new
-
-    def my_next(self):
-        if self.subunit is not None:
-            for u in reversed(self.superunits)
+        tr = TimeRegister(**self.as_dict())
+        tr = next(tr)
+        return CalendarElement(**tr.as_dict())
 
     def __repr__(self):
-        d=self.as_dict()
-        d["type"]="CalendarElement"
+        d = self.as_dict()
+        d["type"] = "CalendarElement"
         return str(d)
 
 
@@ -794,12 +801,12 @@ class _fakedt:
     """ For testing only. """
 
     def __init__(self):
-        self.year=None
-        self.day=None
-        self.month=None
-        self.minute=None
-        self.second=None
-        self.microsecond=None
+        self.year = None
+        self.day = None
+        self.month = None
+        self.minute = None
+        self.second = None
+        self.microsecond = None
 
     def __radd__(self, other):
         pass
@@ -815,9 +822,9 @@ class _fakedate:
     """ For testing only. """
 
     def __init__(self):
-        self.year=None
-        self.day=None
-        self.month=None
+        self.year = None
+        self.day = None
+        self.month = None
 
     def __radd__(self, other):
         pass
@@ -863,7 +870,7 @@ def test_chrono_kind():
 
 def _date_setter(obj, value, attr="date"):
     # _date_or_dt will raise error if neither.
-    kind=_chrono_kind(obj)
+    kind = _chrono_kind(obj)
     match kind:
         case "date":
             setattr(obj, attr, value)
@@ -893,16 +900,16 @@ def _validate_date_input(value, start=None, end=None, inc="days"):
     No attempt is made to similarly coerce start/end to dates.
 
     """
-    out_of_range="{date} is in not given range: {start} to {end}"
+    out_of_range = "{date} is in not given range: {start} to {end}"
     try:
-        kind=_chrono_kind(value)
-        date=value
+        kind = _chrono_kind(value)
+        date = value
     except TypeError:
         if inc in ["days",
                    "seconds", "microseconds",
                    "minutes", "hours", "weeks"]:
-            kwarg={inc: value}
-            date=start + timedelta(**kwarg)
+            kwarg = {inc: value}
+            date = start + timedelta(**kwarg)
             raise ValueError(f"{value} is not a date and cannot be "
                              "coerced to a date with given parameters.")
 
