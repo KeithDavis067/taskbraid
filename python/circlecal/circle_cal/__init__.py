@@ -1,4 +1,4 @@
-from .model import Year_Data
+from .model import TimeDigit
 from .utils import *
 
-__all__ = ["Year_Data", "utils"]
+__all__ = ["TimeDigit", "model", "utils"]
