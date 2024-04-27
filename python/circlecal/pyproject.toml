@@ -14,11 +14,12 @@ pebble = "^5.0.6"
 rich = "^13.7.0"
 skyfield = "^1.46"
 beautiful-date = "^2.3.0"
-pandas = "^2.2.0"
+pandas = "^2.2.1"
 
 
 [tool.poetry.group.dev.dependencies]
 jupyterlab = "^4.0.10"
+pytest = "^8.0.0"
 
 [build-system]
 requires = ["poetry-core"]
