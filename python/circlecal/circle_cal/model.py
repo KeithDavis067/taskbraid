@@ -4,6 +4,8 @@ from dateutil.parser import parse
 from dateutil.relativedelta import relativedelta
 from calendar import monthrange, month_name, day_name
 from collections import namedtuple
+
+__all__ = ["CalendarElement", "TimeDigit"]
 try:
     import pandas as pd
 except ImportError:
@@ -557,6 +559,7 @@ class CalendarElement:
 
     @ property
     def subunit(self):
+        """ Return string representing subunit or None if no subunits."""
         return _subunit(self.unit)
 
     def subunits(self): return _subunits(self.unit)
@@ -680,7 +683,7 @@ class CalendarElement:
 
     def datetime(self):
         rd = relativedelta(**self.as_dict())
-        d = date(1, 1, 1)
+        d = datetime(1, 1, 1)
         return d + rd
 
     def __len__(self):
@@ -729,6 +732,46 @@ class CalendarElement:
         d = self.as_dict()
         d["type"] = "CalendarElement"
         return str(d)
+
+    def date_to_unit(self, d, unit="days"):
+        dt = self.start.datetime() - d
+        return dt / timedelta(**{unit: 1})
+
+    def __lt__(self, other):
+        # Since stop is one us greater than final moment, include eq.
+        try:
+            return self.stop.datetime() <= other.start.datetime()
+        except AttributeError:
+            return self.stop.datetime() <= other
+
+    def __gt__(self, other):
+        try:
+            return self.start.datetime() >= other.stop.datetime()
+        except AttributeError:
+            return self.start.datetime() > other
+
+    def __eq__(self, other):
+        try:
+            return self.datetime() == other.datetime()
+        except AttributeError:
+            return self.datetime() == other
+
+    def __contains__(self, other):
+        # If we have no subunits, then we don't know about smaller units.
+        if self.subunit is None:
+            return False
+        # Can we make a subunit?
+        try:
+            if self.subunit == other.unit:
+                try:
+                    self.gen_sub_element(other.value)
+                    return True
+                except ValueError:
+                    return False
+            else:
+                return False
+        except (AttributeError, TypeError):
+            return self.start < other < self.stop
 
 
 def _quacks_like_a_dt(obj):

@@ -6,13 +6,13 @@ __all__ = ['date_to_theta', 'events_to_dur',
 
 
 def date_to_theta(d, year=None):
-    if year is None:
-        year = CalendarElement(datetime.now().year)
     try:
-        day_to_theta = 360 / len(year)
+        day_to_theta = 360 / (year.stop.datetime() -
+                              year.start.datetime()).days
     except TypeError:
         year = Year_Data(datetime.now().year)
-        day_to_theta = 360 / len(year)
+
+    d2th = 360 / ((year.start.date() - year.end) / timedelta(days=1))
     day = year.int_from_date(d)
 
     return day * day_to_theta
