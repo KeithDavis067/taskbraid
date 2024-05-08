@@ -382,6 +382,14 @@ class TimeDigit:
                 s = f"{v:02}"
         return s
 
+    def __eq__(self, other):
+        """ Return True if unit and value match. """
+        if self.unit != other.unit:
+            return False
+        if self.value != other.value:
+            return False
+        return True
+
     def __len__(self):
         try:
             return self.value - self.start
@@ -566,7 +574,7 @@ class CalendarElement:
 
     @ property
     def superunit(self):
-        return _superunit(self.superunit)
+        return _superunit(self.unit)
 
     def superunits(self): return _superunits(self.unit)
 
@@ -758,6 +766,7 @@ class CalendarElement:
 
     def __contains__(self, other):
         # If we have no subunits, then we don't know about smaller units.
+        print("Contains Called.")
         if self.subunit is None:
             return False
         # Can we make a subunit?
