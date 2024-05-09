@@ -12,7 +12,7 @@ class Test_CalendarElement:
         assert ce.superunit is None
         assert ce.subunit == "month"
         assert ce.digit == TimeDigit("year", 2024)
-        assert ce.year == 2024
+        assert ce.year.value == 2024
 
     def test__contains__(self):
         jan1 = datetime(2024, 1, 1)
