@@ -443,7 +443,7 @@ def _getunitattr(obj, name):
 
 def _delunitattr(obj, name):
     if name in obj.digits:
-        del obj.digits[name]
+        setattr(obj, name, None)
     else:
         object.__delattr__(obj, name)
 
@@ -590,9 +590,12 @@ class CalendarElement:
         # If we're doing a delete operation.
         if value is None:
             for u in [unit] + _subunits(unit):
-                del self.digits[unit]
+                try:
+                    del self.digits[unit]
+                except KeyError:
+                    pass
             try:
-                self.digits[_superunit(u)].subunit = None
+                self.digits[_superunit(unit)].subunit = None
             except (AttributeError, KeyError):
                 pass
         # If we're setting a value.
@@ -621,21 +624,19 @@ class CalendarElement:
                             self.set_unit(u, getattr(dt, u))
                         except AttributeError:
                             self.set_unit(u, 0)
-                    # IF we've set it this way we're done.
-                    return
                 # If we aren't at "year" but have all inbetween units set.
                 td = TimeDigit(unit, value=v,
                                superunit=self.digits[_superunit(unit)])
-            else:
+            else:  # we are at 'year.'
                 td = TimeDigit(unit, value=v)
 
-        if td.subunit is not None:
-            try:
-                self.digits[_subunit(unit)].superunit = td
-                td.subunit = self.digits[_subunit(unit)]
-            except KeyError:
-                pass
-        self.digits[unit] = td
+            if td.subunit is not None:
+                try:
+                    self.digits[_subunit(unit)].superunit = td
+                    td.subunit = self.digits[_subunit(unit)]
+                except KeyError:
+                    pass
+            self.digits[unit] = td
 
     def get_unit(self, u):
         return self.digits[u]
