@@ -752,6 +752,20 @@ class CalendarElement:
         except AttributeError:
             return self.stop.datetime() <= other
 
+    def __le__(self, other):
+        # If less than then we're true but lt rules.
+        if self < other:
+            return True
+        else:
+            return self == other
+
+    def __ge__(self, other):
+        # If less than then we're true but lt rules.
+        if self > other:
+            return True
+        else:
+            return self == other
+
     def __gt__(self, other):
         try:
             return self.start.datetime() >= other.stop.datetime()
@@ -780,7 +794,7 @@ class CalendarElement:
             else:
                 return False
         except (AttributeError, TypeError):
-            return self.start < other < self.stop
+            return self.start <= other < self.stop
 
 
 def _quacks_like_a_dt(obj):
