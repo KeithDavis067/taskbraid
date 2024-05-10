@@ -230,7 +230,8 @@ class TimeDigit:
                 if isinstance(obj.subunit, str):
                     obj._subunit = self
                 elif obj.subunit is not self:
-                    raise ValueError("'subunit' attribute on param 'obj'"
+                    raise ValueError(f"'subunit' attribute on param 'obj'"
+                                     f"is {obj.subunit}"
                                      "must be unassigned or this instance.")
                 self._superunit = obj
             else:
