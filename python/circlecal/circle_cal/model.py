@@ -571,13 +571,15 @@ class CalendarElement:
         """ Return string representing subunit or None if no subunits."""
         return _subunit(self.unit)
 
-    def subunits(self): return _subunits(self.unit)
+    def subunits(self):
+        return _subunits(self.unit)
 
     @ property
     def superunit(self):
         return _superunit(self.unit)
 
-    def superunits(self): return _superunits(self.unit)
+    def superunits(self):
+        return _superunits(self.unit)
 
     def set_unit(self, unit, value):
         """ Set a value or a TimeDigit to a unit.
@@ -592,7 +594,7 @@ class CalendarElement:
         if value is None:
             for u in [unit] + _subunits(unit):
                 try:
-                    del self.digits[unit]
+                    del self.digits[u]
                 except KeyError:
                     pass
             try:
@@ -618,7 +620,7 @@ class CalendarElement:
                     if getattr(self, _superunit(unit)) is None:
                         raise AttributeError
                 except AttributeError:
-                    self.set_unit(_superunit, "start")
+                    self.set_unit(_superunit(unit), "start")
                 td = TimeDigit(
                     unit, value=v, superunit=self.digits[_superunit(unit)])
 

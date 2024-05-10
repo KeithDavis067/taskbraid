@@ -24,7 +24,7 @@ class Test_CalendarElement:
         assert jan1 not in CalendarElement(year=2024, month=2, day=1)
 
     def test_init(self):
-        ce = CalendarElement(year=1, microsecond=0)
+        ce = CalendarElement(microsecond=0)
         assert ce.unit == "microsecond"
         assert ce.subunit is None
         assert ce.superunit == "second"
@@ -42,7 +42,7 @@ class Test_CalendarElement:
         ce.second = 0
         assert ce.unit == "second"
         ce = CalendarElement(year=2024, day=1)
-        ce.microsecond == 0
+        ce.microsecond = 0
         for u in UNITS:
             if u == "year":
                 assert getattr(ce, u).value == 2024
@@ -52,5 +52,5 @@ class Test_CalendarElement:
     def test_unset(self):
         ce = CalendarElement(year=2024, day=1)
         assert ce.unit == "day"
-        ce.day == None
+        ce.day = None
         assert ce.unit == "month"
