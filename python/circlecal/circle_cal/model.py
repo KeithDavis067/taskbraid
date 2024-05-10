@@ -773,7 +773,6 @@ class CalendarElement:
 
     def __contains__(self, other):
         # If we have no subunits, then we don't know about smaller units.
-        print("Contains Called.")
         if self.subunit is None:
             return False
         # Can we make a subunit?
