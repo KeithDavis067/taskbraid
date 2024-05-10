@@ -230,8 +230,8 @@ class TimeDigit:
                 if isinstance(obj.subunit, str):
                     obj._subunit = self
                 elif obj.subunit is not self:
-                    raise ValueError(f"'subunit' attribute ({(self.unit, obj.subunit)}) on param 'obj'"
-                                     f"must be unassigned or this instance. {self.unit}")
+                    raise ValueError("'subunit' attribute on param 'obj'"
+                                     "must be unassigned or this instance.")
                 self._superunit = obj
             else:
                 raise ValueError(
@@ -443,7 +443,7 @@ def _getunitattr(obj, name):
 
 def _delunitattr(obj, name):
     if name in obj.digits:
-        del obj.digits[name]
+        setattr(obj, name, None)
     else:
         object.__delattr__(obj, name)
 
@@ -590,9 +590,12 @@ class CalendarElement:
         # If we're doing a delete operation.
         if value is None:
             for u in [unit] + _subunits(unit):
-                del self.digits[unit]
+                try:
+                    del self.digits[unit]
+                except KeyError:
+                    pass
             try:
-                self.digits[_superunit(u)].subunit = None
+                self.digits[_superunit(unit)].subunit = None
             except (AttributeError, KeyError):
                 pass
         # If we're setting a value.
@@ -620,22 +623,20 @@ class CalendarElement:
                         try:
                             self.set_unit(u, getattr(dt, u))
                         except AttributeError:
-                            self.set_unit(u, Tim)
-                    # IF we've set it this way we're done.
-                    return
+                            self.set_unit(u, 0)
                 # If we aren't at "year" but have all inbetween units set.
                 td = TimeDigit(unit, value=v,
                                superunit=self.digits[_superunit(unit)])
-            else:
+            else:  # we are at 'year.'
                 td = TimeDigit(unit, value=v)
 
-        if td.subunit is not None:
-            try:
-                self.digits[_subunit(unit)].superunit = td
-                td.subunit = self.digits[_subunit(unit)]
-            except KeyError:
-                pass
-        self.digits[unit] = td
+            if td.subunit is not None:
+                try:
+                    self.digits[_subunit(unit)].superunit = td
+                    td.subunit = self.digits[_subunit(unit)]
+                except KeyError:
+                    pass
+            self.digits[unit] = td
 
     def get_unit(self, u):
         return self.digits[u]
@@ -693,32 +694,6 @@ class CalendarElement:
         rd = relativedelta(**self.as_dict())
         d = datetime(1, 1, 1)
         return d + rd
-
-    def as_dtclass(self):
-        dt = self.datetime()
-        if not self.has_date():
-            return dt.time()
-        if not self.has_time():
-            return dt.date()
-        return dt
-
-    def has_time(self):
-        for u in ["hour", "minute", "second", "microsecond"]:
-            try:
-                if getattr(self, u).value is not None:
-                    return True
-            except AttributeError:
-                continue
-        return False
-
-    def has_date(self):
-        for u in ["year", "month", "day"]:
-            try:
-                if getattr(self, u).value is not None:
-                    return True
-            except AttributeError:
-                continue
-        return False
 
     def __len__(self):
         try:
@@ -806,6 +781,7 @@ class CalendarElement:
 
     def __contains__(self, other):
         # If we have no subunits, then we don't know about smaller units.
+        print("Contains Called.")
         if self.subunit is None:
             return False
         # Can we make a subunit?
