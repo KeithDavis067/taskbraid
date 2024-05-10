@@ -230,8 +230,8 @@ class TimeDigit:
                 if isinstance(obj.subunit, str):
                     obj._subunit = self
                 elif obj.subunit is not self:
-                    raise ValueError("'subunit' attribute on param 'obj'"
-                                     "must be unassigned or this instance.")
+                    raise ValueError(f"'subunit' attribute ({(self.unit, obj.subunit)}) on param 'obj'"
+                                     f"must be unassigned or this instance. {self.unit}")
                 self._superunit = obj
             else:
                 raise ValueError(
@@ -620,7 +620,7 @@ class CalendarElement:
                         try:
                             self.set_unit(u, getattr(dt, u))
                         except AttributeError:
-                            self.set_unit(u, 0)
+                            self.set_unit(u, Tim)
                     # IF we've set it this way we're done.
                     return
                 # If we aren't at "year" but have all inbetween units set.
@@ -693,6 +693,32 @@ class CalendarElement:
         rd = relativedelta(**self.as_dict())
         d = datetime(1, 1, 1)
         return d + rd
+
+    def as_dtclass(self):
+        dt = self.datetime()
+        if not self.has_date():
+            return dt.time()
+        if not self.has_time():
+            return dt.date()
+        return dt
+
+    def has_time(self):
+        for u in ["hour", "minute", "second", "microsecond"]:
+            try:
+                if getattr(self, u).value is not None:
+                    return True
+            except AttributeError:
+                continue
+        return False
+
+    def has_date(self):
+        for u in ["year", "month", "day"]:
+            try:
+                if getattr(self, u).value is not None:
+                    return True
+            except AttributeError:
+                continue
+        return False
 
     def __len__(self):
         try:
@@ -780,7 +806,6 @@ class CalendarElement:
 
     def __contains__(self, other):
         # If we have no subunits, then we don't know about smaller units.
-        print("Contains Called.")
         if self.subunit is None:
             return False
         # Can we make a subunit?
