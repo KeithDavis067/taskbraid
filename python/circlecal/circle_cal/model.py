@@ -615,28 +615,17 @@ class CalendarElement:
             if _superunit(unit) is not None:
                 # IF we're setting a value without setting all the in between first.
                 try:
-                    if self.digits[_superunit(unit)].value is None:
-                        raise KeyError
-                except (KeyError, TypeError):
-                    dt = self.datetime() + relativedelta(**{unit + "s": v})
-                    print(unit)
-                    for u in _superunits(unit):
-                        try:
-                            self.set_unit(u, getattr(dt, u))
-                        except AttributeError:
-                            self.set_unit(u, 0)
-                # If we aren't at "year" but have all inbetween units set.
-                td = TimeDigit(unit, value=v,
-                               superunit=self.digits[_superunit(unit)])
-            else:  # we are at 'year.'
+                    if getattr(self, _superunit(unit)) is None:
+                        raise AttributeError
+                except AttributeError:
+                    self.set_unit(_superunit, "start")
+                td = TimeDigit(
+                    unit, value=v, superunit=self.digits[_superunit(unit)])
+
+            else:
+                # we are at 'year.'
                 td = TimeDigit(unit, value=v)
 
-            if td.subunit is not None:
-                try:
-                    self.digits[_subunit(unit)].superunit = td
-                    td.subunit = self.digits[_subunit(unit)]
-                except KeyError:
-                    pass
             self.digits[unit] = td
 
     def get_unit(self, u):
@@ -948,10 +937,7 @@ def _date_setter(obj, value, attr="date"):
             # This might trash timezone data on dates, so if
             # not local tz we might
             # leave time, but I need to read more about tzinfo first.
-            if (obj.hours,
-                obj.minutes,
-                obj.seconds,
-                    obj.microseconds) == (0, 0, 0, 0):
+            if (obj.hours, obj.minutes, obj.seconds, obj.microseconds) == (0, 0, 0, 0):
                 setattr(obj, attr, value.date())
             else:
                 setattr(obj, attr, value)
@@ -981,14 +967,14 @@ def _validate_date_input(value, start=None, end=None, inc="days"):
             raise ValueError(f"{value} is not a date and cannot be "
                              "coerced to a date with given parameters.")
 
-    if start is not None:
-        if not start <= date:
-            raise out_of_range.format(**locals())
+            if start is not None:
+                if not start <= date:
+                    raise out_of_range.format(**locals())
 
-        if end is not None:
-            if not date < end:
-                raise out_of_range.format(**locals())
-        return date
+                if end is not None:
+                    if not date < end:
+                        raise out_of_range.format(**locals())
+    return date
 
 
 class Event:
