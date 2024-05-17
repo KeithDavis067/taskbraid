@@ -439,7 +439,7 @@ def _getunitattr(obj, name):
     except KeyError:
         pass
 
-    obj.__getattribute__(name)
+    return obj.__getattribute__(name)
 
 
 def _delunitattr(obj, name):
@@ -659,12 +659,15 @@ class CalendarElement:
         return d
 
     def gen_sub_digit(self, value=None):
-        return TimeDigit(self.subunit, value=value, superunit=self.digit)
+        # Creating on a copy so that we don't assign this digit
+        # as a subdigit of self.
+        new = self.__class__(**self.as_dict())
+        return TimeDigit(new.subunit, value=value, superunit=new.digit)
 
     def gen_sub_element(self, value=None):
         d = self.as_dict()
         d[self.subunit] = self.gen_sub_digit(value=value).range.start
-        return self.__class__(**d, superunit=self.digit)
+        return self.__class__(**d)
 
     def __getitem__(self, i):
         if self.subunit is None:
@@ -735,8 +738,9 @@ class CalendarElement:
         return str(d)
 
     def date_to_unit(self, d, unit="days"):
-        dt = self.start.datetime() - d
-        return dt / timedelta(**{unit: 1})
+        td = timedelta(seconds=(self.start.datetime().timestamp() -
+                                to_timestamp(d)))
+        return td / timedelta(**{unit: 1})
 
     def __lt__(self, other):
         # Since stop is one us greater than final moment, include eq.
@@ -978,7 +982,7 @@ def _validate_date_input(value, start=None, end=None, inc="days"):
     return date
 
 
-class Event:
+class EventWrap:
     """
     Implementation Note: gcsa module gets events from gcal with the start date as expected
     and the end as the moment the event ends. So, a single date events starts on the day it
@@ -991,18 +995,46 @@ class Event:
     before. A meeting event that lasts from 10:00 AM to 11:00 AM will return False on the call:
         `11:00 AM in event`.
     """
-    @ property
-    def start(self):
-        return self._start
 
-    @ start.setter
-    def start(self, value):
-        _date_setter(self, value, "start")
+    def __init__(self, gcsaevent):
+        self.gcsaevent = gcsaevent
 
-    @ property
-    def end(self):
-        return self._end
+    @property
+    def duration(self):
+        return timedelta(seconds=to_timestamp(self.end) - to_timestamp(self.start))
 
-    @ end.setter
-    def start(self, value):
-        _date_setter(self, value, "end")
+    @property
+    def mid(self):
+        return self.start + self.duration / 2
+
+    def __getattr__(self, name):
+        try:
+            return getattr(self.gcsaevent, name)
+        except AttributeError:
+            pass
+        return self.__getattribute__(name)
+
+    def __setattr__(self, name, value):
+        if name == "gcsaevent":
+            object.__setattr__(self, name, value)
+        setattr(self.gcsaevent, name, value)
+
+
+def to_theta(datevalue, year=None):
+    if year is None:
+        try:
+            year = datevalue.year
+        except AttributeError:
+            year = datetime.today().year
+
+    ce = CalendarElement(year=year)
+    days = ce.date_to_unit(datevalue)
+    return 360 / len(list(ce.recursive_iteration("day"))) * days
+
+
+def to_timestamp(obj):
+    try:
+        ts = obj.timestamp()
+    except AttributeError:
+        ts = datetime.combine(obj, time(0, 0)).timestamp()
+    return ts
