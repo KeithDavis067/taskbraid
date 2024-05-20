@@ -163,6 +163,25 @@ def test_superunits():
     assert _superunits("year") == []
 
 
+def mid(obj):
+    match _chrono_kind(obj.start):
+        case "date":
+            return datetime.combine(obj.start, time(0, 0)) + (obj.duration / 2)
+        case "dt":
+            return obj.start + (obj.duration / 2)
+        case "time":
+            secs = obj.start.hour * 3600 + \
+                obj.start.minute * 60, + \
+                obj.start.second + obj.start.microsecond / 1e6
+            td = obj.duration / 2 + timedelta(seconds=secs)
+            if td < 24 * 60 * 60:
+                return time(0, 0) + td
+            else:
+                raise ValueError(
+                    "Cannot return midpoint longer than one day from "
+                    "events without known date.")
+
+
 def _unit_range(obj):
     if obj.unit == "day":
         try:
@@ -669,21 +688,45 @@ class CalendarElement:
         d[self.subunit] = self.gen_sub_digit(value=value).range.start
         return self.__class__(**d)
 
+    def duration(self):
+        return self.stop.datetime() - self.start.datetime()
+
+    @property
+    def mid(self):
+        return self.start.datetime() + self.duration()
+
     def __getitem__(self, i):
         if self.subunit is None:
             raise TypeError(f"{self.unit} has no members.")
 
-        # This lets us get the start range for the unit.
-        new = self.gen_sub_element()
         try:
-            if i >= 0:
-                new.value = new.range.start + i
-            else:
-                new.value = new.range.stop + i
-        except ValueError as e:
-            raise IndexError from e
+            r = range(i.start, i.stop, i.step)
+        except TypeError:
+            try:
+                r = range(i.start, i.stop)
+            except AttributeError:
+                r = [i]
+        except AttributeError:
+            r = [i]
 
-        return new
+        # This lets us get the start range for the unit.
+        result = []
+
+        for i in r:
+            new = self.gen_sub_element()
+            try:
+                if i >= 0:
+                    new.value = new.range.start + i
+                else:
+                    new.value = new.range.stop + i
+            except ValueError as e:
+                raise IndexError from e
+            result.append(new)
+
+        if hasattr(r, "start"):
+            return result
+        else:
+            return result[0]
 
     def datetime(self):
         rd = relativedelta(**self.as_dict())
@@ -738,8 +781,8 @@ class CalendarElement:
         return str(d)
 
     def date_to_unit(self, d, unit="days"):
-        td = timedelta(seconds=(self.start.datetime().timestamp() -
-                                to_timestamp(d)))
+        td = timedelta(seconds=(to_timestamp(d) -
+                                self.start.datetime().timestamp()))
         return td / timedelta(**{unit: 1})
 
     def __lt__(self, other):
@@ -999,28 +1042,11 @@ class EventWrap:
     def __init__(self, gcsaevent):
         self.gcsaevent = gcsaevent
 
-    @property
+    @ property
     def duration(self):
         return timedelta(seconds=(to_timestamp(self.end) - to_timestamp(self.start)))
 
-    @property
-    def mid(self):
-        match _chrono_kind(self.start):
-            case "date":
-                return datetime.combine(self.start, time(0, 0)) + (self.duration / 2)
-            case "dt":
-                return self.start + (self.duration / 2)
-            case "time":
-                secs = self.start.hour * 3600 + \
-                    self.start.minute * 60, + \
-                    self.start.second + self.start.microsecond / 1e6
-                td = self.duration / 2 + timedelta(seconds=secs)
-                if td < 24 * 60 * 60:
-                    return time(0, 0) + td
-                else:
-                    raise ValueError(
-                        "Cannot return midpoint longer than one day from "
-                        "events without known date.")
+    mid = property(mid)
 
     def __getattr__(self, name):
         try:
