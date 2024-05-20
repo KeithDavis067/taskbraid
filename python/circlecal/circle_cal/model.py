@@ -1005,8 +1005,22 @@ class EventWrap:
 
     @property
     def mid(self):
-        try:
-            return
+        match _chrono_kind(self.start):
+            case "date":
+                return datetime.combine(self.start, time(0, 0)) + (self.duration / 2)
+            case "dt":
+                return self.start + (self.duration / 2)
+            case "time":
+                secs = self.start.hour * 3600 + \
+                    self.start.minute * 60, + \
+                    self.start.second + self.start.microsecond / 1e6
+                td = self.duration / 2 + timedelta(seconds=secs)
+                if td < 24 * 60 * 60:
+                    return time(0, 0) + td
+                else:
+                    raise ValueError(
+                        "Cannot return midpoint longer than one day from "
+                        "events without known date.")
 
     def __getattr__(self, name):
         try:
