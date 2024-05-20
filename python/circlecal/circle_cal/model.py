@@ -1001,11 +1001,12 @@ class EventWrap:
 
     @property
     def duration(self):
-        return timedelta(seconds=to_timestamp(self.end) - to_timestamp(self.start))
+        return timedelta(seconds=(to_timestamp(self.end) - to_timestamp(self.start)))
 
     @property
     def mid(self):
-        return self.start + self.duration / 2
+        try:
+            return
 
     def __getattr__(self, name):
         try:
