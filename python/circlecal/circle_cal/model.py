@@ -600,6 +600,16 @@ class CalendarElement:
     def superunits(self):
         return _superunits(self.unit)
 
+    @property
+    def name(self):
+        if self.unit == "month":
+            try:
+                calendar.month_name(self.value)
+            except TypeError:
+                return None
+        else:
+            return str(self.value)
+
     def set_unit(self, unit, value):
         """ Set a value or a TimeDigit to a unit.
 
@@ -1040,7 +1050,10 @@ class EventWrap:
     """
 
     def __init__(self, gcsaevent):
-        self.gcsaevent = gcsaevent
+        if isinstance(gcsaevent, self.__class__):
+            self.gcsaevent = gcsaevent.gcsaevent
+        else:
+            self.gcsaevent = gcsaevent
 
     @ property
     def duration(self):
@@ -1059,18 +1072,6 @@ class EventWrap:
         if name == "gcsaevent":
             object.__setattr__(self, name, value)
         setattr(self.gcsaevent, name, value)
-
-
-def to_theta(datevalue, year=None):
-    if year is None:
-        try:
-            year = datevalue.year
-        except AttributeError:
-            year = datetime.today().year
-
-    ce = CalendarElement(year=year)
-    days = ce.date_to_unit(datevalue)
-    return 360 / len(list(ce.recursive_iteration("day"))) * days
 
 
 def to_timestamp(obj):
