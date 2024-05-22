@@ -604,7 +604,7 @@ class CalendarElement:
     def name(self):
         if self.unit == "month":
             try:
-                calendar.month_name(self.value)
+                return calendar.month_name[self.value]
             except TypeError:
                 return None
         else:
@@ -698,12 +698,13 @@ class CalendarElement:
         d[self.subunit] = self.gen_sub_digit(value=value).range.start
         return self.__class__(**d)
 
+    @property
     def duration(self):
         return self.stop.datetime() - self.start.datetime()
 
     @property
     def mid(self):
-        return self.start.datetime() + self.duration()
+        return self.start.datetime() + self.duration
 
     def __getitem__(self, i):
         if self.subunit is None:

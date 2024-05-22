@@ -2,6 +2,7 @@ from datetime import datetime, time, date, timedelta
 from .model import CalendarElement, TimeDigit, TimeRegister
 import plotly.graph_objects as go
 import calendar
+import numpy as np
 
 # Fundamental ploting plan:
 # Central .2 is taken up by the year value.
@@ -16,7 +17,6 @@ POLAR_CORE = .2  # The amount teken up by the central text.
 NGROUPS = 5
 RSPACING = 0
 DR = (1 - POLAR_CORE - RSPACING * (NGROUPS - 1)) / NGROUPS
-print(DR)
 
 
 def to_theta(datevalue, year=None):
@@ -72,3 +72,9 @@ def events_to_trace(events, days_to_theta=None):
         tx.append(" ".join((str(i), str(event.mid),
                   event.summary)))
     return go.Barpolar(base=b, r=r, theta=t, width=w, text=tx)
+
+
+def polar_to_cart(r, theta):
+    x = r * np.sin(theta)
+    y = r * np.cos(theta)
+    return (x, y)
