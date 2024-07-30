@@ -57,7 +57,14 @@ def event_to_barpolar_values(event, days_to_theta=None):
     return (base, r, theta, width)
 
 
-def events_to_trace(events, days_to_theta=None):
+def events_to_trace(events, days_to_theta=None, type="barpolar"):
+    if type == "barpolar":
+        return events_to_barpolar(events, days_to_theta=days_to_theta)
+    if type == "scatterpolar":
+        return events_to_scatterpolar(events, days_to_theta=days_to_theta)
+
+
+def events_to_barpolar(events, days_to_theta=None):
     b = []
     r = []
     t = []
@@ -71,7 +78,12 @@ def events_to_trace(events, days_to_theta=None):
         w.append(ww)
         tx.append(" ".join((str(i), str(event.mid),
                   event.summary)))
-    return go.Barpolar(base=b, r=r, theta=t, width=w, text=tx)
+    if type == "bar":
+        return go.Barpolar(base=b, r=r, theta=t, width=w, text=tx)
+
+
+def events_to_scatterpolar(events, days_to_theta):
+    pass
 
 
 def polar_to_cart(r, theta):

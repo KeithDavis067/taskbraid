@@ -1081,3 +1081,7 @@ def to_timestamp(obj):
     except AttributeError:
         ts = datetime.combine(obj, time(0, 0)).timestamp()
     return ts
+
+
+def events_to_df(events):
+    df = {}
