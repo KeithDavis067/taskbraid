@@ -704,7 +704,7 @@ class CalendarElement:
 
     @property
     def mid(self):
-        return self.start.datetime() + self.duration
+        return self.start.datetime() + (self.duration / 2)
 
     def __getitem__(self, i):
         if self.subunit is None:
