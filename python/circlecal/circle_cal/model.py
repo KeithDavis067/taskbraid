@@ -847,6 +847,75 @@ class CalendarElement:
             return self.start <= other < self.stop
 
 
+class Event:
+    @property
+    def duration(self):
+        try:
+            if self._duration is not None:
+                return self._duration
+        except AttributeError:
+            pass
+        dur = self._end - self.start
+        if dur == timedelta(0):
+            dur = self.combine(self._end, time(0, 0, 0)) - self.start
+        return dur
+
+    @duration.setter
+    def duration(self, value):
+        try:
+            if self._end is not None:
+                del self._end
+        except AttributeError:
+            pass
+        self._duration = value
+
+    @property
+    def end(self):
+        try:
+            if self._end is not None:
+                return self._end
+        except AttributeError:
+            return self.start + self._duration
+
+    @end.setter
+    def end(self, value):
+        try:
+            if self._duration is not None:
+                del self._duration
+        except AttributeError:
+            pass
+        self._end = value
+
+    def __str__(self):
+        return f"({self.start}, {self.end})"
+
+    @property
+    def mid(self):
+        mid = self.start + (self.duration / 2)
+        if mid == self.start:
+            mid = datetime.combine(self.start,
+                                   time(0, 0, 0)) + (self.duration / 2)
+        return mid
+
+    def __init__(self, start, **kwargs):
+        self.start = start
+        try:
+            self.duration = kwargs["duration"]
+        except KeyError:
+            pass
+
+        try:
+            self.end = kwargs["end"]
+        except KeyError:
+            pass
+
+        try:
+            self.mid
+        except AttributeError as e:
+            raise TypeError(
+                "Cannot initialize without one of keywords 'duration' or 'end'.") from e
+
+
 def _quacks_like_a_dt(obj):
     """ Reusable function to allow passing dt objects or parseable strings."""
     try:
