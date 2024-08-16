@@ -15,6 +15,7 @@ rich = "^13.7.0"
 skyfield = "^1.46"
 beautiful-date = "^2.3.0"
 pandas = "^2.2.1"
+workalendar = "^17.0.0"
 
 
 [tool.poetry.group.dev.dependencies]

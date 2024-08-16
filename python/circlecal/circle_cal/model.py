@@ -4,6 +4,7 @@ from dateutil.parser import parse
 from dateutil.relativedelta import relativedelta
 from calendar import monthrange, month_name, day_name
 from collections import namedtuple
+from workalendar.usa import UnitedStates
 
 __all__ = ["CalendarElement", "TimeDigit"]
 try:
@@ -131,6 +132,12 @@ def _subunits(unit):
     if unit == UNITS[-1]:
         return []
     return UNITS[UNITS.index(unit) + 1:]
+
+
+def is_subunit(left, right):
+    if left in _subunits(right):
+        return True
+    return False
 
 
 def test_subunits():
@@ -696,7 +703,7 @@ class CalendarElement:
     def gen_sub_element(self, value=None):
         d = self.as_dict()
         d[self.subunit] = self.gen_sub_digit(value=value).range.start
-        return self.__class__(**d)
+        return CalendarElement(**d)
 
     @property
     def duration(self):
@@ -752,15 +759,17 @@ class CalendarElement:
             raise TypeError(
                 f"Cannot create smaller elements for {self}") from e
 
-    def recursive_iteration(self, unit):
-        if UNITS[UNITS.index(unit)] > UNITS[UNITS.index(self.unit)]:
+    def subunit_generator(self, unit):
+        # if UNITS.index(unit) > UNITS.index(self.unit):
+        #     raise ValueError(f"{unit} not a subunit of {self.unit}")
+        if unit not in self.subunits():
             raise ValueError(f"{unit} not a subunit of {self.unit}")
 
         for sub in self:
             if sub.unit == unit:
                 yield sub
             else:
-                yield from sub.recursive_iteration(unit)
+                yield from sub.subunit_generator(unit)
 
     @ property
     def range(self):
@@ -848,7 +857,7 @@ class CalendarElement:
 
 
 class Event:
-    @property
+    @ property
     def duration(self):
         try:
             if self._duration is not None:
@@ -860,7 +869,7 @@ class Event:
             dur = self.combine(self._end, time(0, 0, 0)) - self.start
         return dur
 
-    @duration.setter
+    @ duration.setter
     def duration(self, value):
         try:
             if self._end is not None:
@@ -869,7 +878,7 @@ class Event:
             pass
         self._duration = value
 
-    @property
+    @ property
     def end(self):
         try:
             if self._end is not None:
@@ -877,7 +886,7 @@ class Event:
         except AttributeError:
             return self.start + self._duration
 
-    @end.setter
+    @ end.setter
     def end(self, value):
         try:
             if self._duration is not None:
@@ -889,7 +898,7 @@ class Event:
     def __str__(self):
         return f"({self.start}, {self.end})"
 
-    @property
+    @ property
     def mid(self):
         mid = self.start + (self.duration / 2)
         if mid == self.start:
@@ -914,6 +923,20 @@ class Event:
         except AttributeError as e:
             raise TypeError(
                 "Cannot initialize without one of keywords 'duration' or 'end'.") from e
+
+        try:
+            self.label = kwargs["label"]
+        except KeyError:
+            self.label = None
+
+        # Below is convenience for calling label, summary whem mixed in with gcale eventrs.
+        @property
+        def summary(self):
+            return self.label
+
+        @summary.setter
+        def summary(self, value):
+            self.label = value
 
 
 def _quacks_like_a_dt(obj):
@@ -1114,7 +1137,7 @@ class EventWrap:
 
     We will adopt this structure for simplicity's sake. This matters mostly for the __timecontains__
     function. That will be implemented so that it returns True if event.start <= datetime < event.end.
-    This means for an event that lasts one day, the next date will not return True, but one microsecond
+    This means for an evenet that lasts one day, the next date will not return True, but one microsecond
     before. A meeting event that lasts from 10:00 AM to 11:00 AM will return False on the call:
         `11:00 AM in event`.
     """
@@ -1150,3 +1173,112 @@ def to_timestamp(obj):
     except AttributeError:
         ts = datetime.combine(obj, time(0, 0)).timestamp()
     return ts
+
+
+def year_to_sunburst(year):
+    y = CalendarElement(year=year)
+    parents = [None]
+    names = [y.year.value]
+    values = [1]
+    for m in y:
+        parents.append(y.year.value)
+        names.append(m.name)
+        values.append(1)
+        for day in m:
+            parents.append(m.name)
+            names.append(f"{day.year}-{day.month}-{day.day}")
+            values.append(1)
+    return dict(parents=parents,
+                labels=names, values=values)
+
+
+yd = year_to_sunburst(2024)
+
+
+def localize_any(obj, tz):
+    try:
+        return tz.localize(obj)
+    except ValueError:
+        if obj.tzinfo:
+            return obj
+    except AttributeError:
+        return tz.localize(datetime.combine(obj, time(0, 0)))
+    return obj
+
+
+def weekday(datelike):
+    return list(calendar.day_name)[calendar.weekday(datelike.year,
+                                                    datelike.month,
+                                                    datelike.day)]
+
+
+def is_weekend(datelike):
+    if calendar.weekday(datelike.year, datelike.month, datelike.day) in [5, 6]:
+        return True
+    else:
+        return False
+
+
+def weekends(yearlike):
+    try:
+        g = yearlike.recursive_iteration("day")
+    except AttributeError:
+        try:
+            g = Year(yearlike.year).recursive_iteration("day")
+        except AttributeError:
+            g = Year(yearlike).recursive_iteration("day")
+
+    ws = []
+    start = None
+    for d in CalendarElement(year=2024).recursive_iteration("day"):
+        d = d.datetime()
+        if is_weekend(d):
+            if start is None:
+                start = d
+            else:
+                ws.append(Event(start, end=d))
+                start = None
+    return ws
+
+
+class Year(CalendarElement):
+    @property
+    def DATES(self):
+        try:
+            if self._dates is not None:
+                return self._dates
+        except AttributeError:
+            pass
+        self._dates = list(self.subunit_generator("day"))
+        return self._dates
+
+    def __init__(self, year, **kwargs):
+        super(Year, self).__init__(year=year, **kwargs)
+
+    def day_to_date(self, day_int):
+        return self.DATES[day_int]
+
+    def date_to_day(self, date):
+        try:
+            return self.DATES.index(date)
+        except ValueError:
+            pass
+
+        try:
+            return self.DATES.index(CalendarElement(year=date.year,
+                                                    month=date.month,
+                                                    day=date.day))
+        except ValueError as e:
+            raise ValueError(f"{date} not in {self.year}") from e
+
+    def is_weekend(self, datelike):
+        return is_weekend(datelike)
+
+    def weekday(self, datelike):
+        return datelike
+
+    weekends = weekends
+
+    def holidays(self):
+        cal = NotreDame()
+        return [Event(h) for d, label in cal.holidays()]
