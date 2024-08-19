@@ -5,6 +5,17 @@ from dateutil.relativedelta import relativedelta
 from calendar import monthrange, month_name, day_name
 from collections import namedtuple
 from workalendar.usa import UnitedStates
+from pytz import timezone
+
+
+ETZ = timezone("America/New_York")
+
+try:
+    from skyfield.api import load
+    from skyfield import almanac
+    skyfield = True
+except ImportError:
+    skyfield = False
 
 __all__ = ["CalendarElement", "TimeDigit"]
 try:
@@ -698,7 +709,7 @@ class CalendarElement:
     def gen_sub_digit(self, value=None):
         # Creating on a copy so that we don't assign this digit
         # as a subdigit of self.
-        new = self.__class__(**self.as_dict())
+        new = CalendarElement(**self.as_dict())
         return TimeDigit(new.subunit, value=value, superunit=new.digit)
 
     def gen_sub_element(self, value=None):
@@ -784,7 +795,7 @@ class CalendarElement:
 
     @ property
     def start(self):
-        new = self.__class__(**self.as_dict())
+        new = CalendarElement(**self.as_dict())
         if new.unit != UNITS[-1]:
             new.digits[self.subunit] = TimeDigit(
                 self.subunit, "start", superunit=new.digits[self.unit])
@@ -1229,16 +1240,16 @@ def is_weekend(datelike):
 
 def weekends(yearlike):
     try:
-        g = yearlike.recursive_iteration("day")
+        g = yearlike.subunit_generator("day")
     except AttributeError:
         try:
-            g = Year(yearlike.year).recursive_iteration("day")
+            g = Year(yearlike.year).subunit_generator("day")
         except AttributeError:
-            g = Year(yearlike).recursive_iteration("day")
+            g = Year(yearlike).subunit_generator("day")
 
     ws = []
     start = None
-    for d in CalendarElement(year=2024).recursive_iteration("day"):
+    for d in CalendarElement(year=2024).subunit_generator("day"):
         d = d.datetime()
         if is_weekend(d):
             if start is None:
@@ -1255,9 +1266,7 @@ def season_events(obj):
     except AttributeError:
         year = obj
 
-    try:
-        from skyfield.api import load
-        from skyfield import almanac
+    if skyfield:
         ts = load.timescale()
         eph = load('de421.bsp')
         t0 = ts.utc(year, 1, 1)
@@ -1268,8 +1277,7 @@ def season_events(obj):
             dates.append(Event(start=datetime.fromisoformat(ti.utc_iso(' ')),
                                duration=timedelta(seconds=2),
                                label=almanac.SEASON_EVENTS_NEUTRAL[yi]))
-
-    except ImportError:
+    else:
         june = date(year, 6, 21)
         december = date(year, 12, 21)
         march = date(year, 3, 21)
@@ -1287,7 +1295,6 @@ def season_events(obj):
 
 
 class Year(CalendarElement):
-
     @ property
     def DATES(self):
         try:
@@ -1299,10 +1306,19 @@ class Year(CalendarElement):
         return self._dates
 
     def __init__(self, year, **kwargs):
-        self.cal = UnitedStates()
-        theta_per_day = 360 / len(self.DATES)
-
         super(Year, self).__init__(year=year, **kwargs)
+
+        self.cal = UnitedStates()
+        self.theta_per_day = 360 / len(self.DATES)
+        try:
+            self.ACADEMIC_EVENTS = kwargs.pop("academic_events")
+        except KeyError:
+            self.ACADEMIC_EVENTS = []
+
+    season_events = season_events
+
+    def academic_events(self):
+        return self.academic_events
 
     def day_to_date(self, day_int):
         return self.DATES[day_int]
@@ -1322,9 +1338,9 @@ class Year(CalendarElement):
 
     def to_theta(self, value):
         try:
-            dt = value - self.start
+            dt = value - self.start.datetime()
         except TypeError:
-            dt = self.value - datetime.combine(self.start, time(0, 0))
+            dt = datetime.combine(value, time(0, 0)) - self.start.datetime()
 
         return dt/timedelta(days=1) * self.theta_per_day
 
@@ -1338,3 +1354,38 @@ class Year(CalendarElement):
         return self.cal.get_calendar_holidays(self.year)
 
     weekends = weekends
+
+
+def calendars_to_dataframe(gcal, selcal, year):
+    if isinstance(year, int):
+        year = Year(year)
+    dfs = []
+    for cal in selcal:
+        events = gcal.get_events(year.start.datetime(),
+                                 year.stop.datetime(),
+                                 single_events=True,
+                                 calendar_id=cal.calendar_id,
+                                 )
+
+        df = pd.DataFrame(data=[EventWrap(ev) for ev in events if ev.other["eventType"] != "workingLocation"],
+                          columns=["Event_obj"]
+                          )
+
+        df["color"] = cal.background_color
+        df["calendar_id"] = cal.calendar_id
+        df["calendar"] = cal.summary
+        dfs.append(df)
+
+    df = pd.concat(dfs, axis="rows", ignore_index=True)
+    df["duration"] = df["Event_obj"].apply(lambda ev: ev.duration)
+    df["mid"] = pd.to_datetime(df["Event_obj"].apply(
+        lambda ev: localize_any(ev.mid, ETZ)), utc=True).dt.tz_convert(ETZ)
+    df["start"] = pd.to_datetime(df["Event_obj"].apply(
+        lambda ev: localize_any(ev.start, ETZ)), utc=True).dt.tz_convert(ETZ)
+    df["end"] = pd.to_datetime(df["Event_obj"].apply(
+        lambda ev: localize_any(ev.end, ETZ)), utc=True).dt.tz_convert(ETZ)
+# df["end"] = df["Event_obj"].apply(lambda ev: ev.end)
+
+    df["summary"] = df["Event_obj"].apply(lambda ev: ev.summary)
+    df["weekday"] = df.start.apply(weekday)
+    return df
