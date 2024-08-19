@@ -673,10 +673,11 @@ class CalendarElement:
     __setattr__ = _setunitattr
     __delattr__ = _delunitattr
 
-    def __init__(self, **kwargs):
+    def __init__(self, label=None, **kwargs):
         """ Initiliase with values from unit kwargs.
 
         """
+        self.label = label
         self.digits = {}
         for u in UNITS:
             try:
@@ -896,7 +897,14 @@ class Event:
         self._end = value
 
     def __str__(self):
-        return f"({self.start}, {self.end})"
+        try:
+            if self.label is not None:
+                return f"({self.label}: {self.start} to {self.end})"
+        except AttributeError:
+            pass
+        return f"Event: {self.start} to {self.end}"
+
+    __repr__ = __str__
 
     @ property
     def mid(self):
@@ -1241,8 +1249,46 @@ def weekends(yearlike):
     return ws
 
 
+def season_events(obj):
+    try:
+        year = obj.year
+    except AttributeError:
+        year = obj
+
+    try:
+        from skyfield.api import load
+        from skyfield import almanac
+        ts = load.timescale()
+        eph = load('de421.bsp')
+        t0 = ts.utc(year, 1, 1)
+        t1 = ts.utc(year, 12, 31)
+        t, y = almanac.find_discrete(t0, t1, almanac.seasons(eph))
+        dates = []
+        for yi, ti in zip(y, t):
+            dates.append(Event(start=datetime.fromisoformat(ti.utc_iso(' ')),
+                               duration=timedelta(seconds=2),
+                               label=almanac.SEASON_EVENTS_NEUTRAL[yi]))
+
+    except ImportError:
+        june = date(year, 6, 21)
+        december = date(year, 12, 21)
+        march = date(year, 3, 21)
+        september = date(year, 9, 21)
+        dates = [Event(june, duration=timedelta(days=1), label="June Solstice"),
+                 Event(december, duration=timedelta(
+                     days=1), label="December Solstice"),
+                 Event(march, duration=timedelta(
+                     days=1), label="March Solstice"),
+                 Event(september, duration=timedelta(
+                     days=1), label="September Solstice"),
+                 ]
+
+    return dates
+
+
 class Year(CalendarElement):
-    @property
+
+    @ property
     def DATES(self):
         try:
             if self._dates is not None:
@@ -1253,6 +1299,9 @@ class Year(CalendarElement):
         return self._dates
 
     def __init__(self, year, **kwargs):
+        self.cal = UnitedStates()
+        theta_per_day = 360 / len(self.DATES)
+
         super(Year, self).__init__(year=year, **kwargs)
 
     def day_to_date(self, day_int):
@@ -1271,14 +1320,21 @@ class Year(CalendarElement):
         except ValueError as e:
             raise ValueError(f"{date} not in {self.year}") from e
 
+    def to_theta(self, value):
+        try:
+            dt = value - self.start
+        except TypeError:
+            dt = self.value - datetime.combine(self.start, time(0, 0))
+
+        return dt/timedelta(days=1) * self.theta_per_day
+
     def is_weekend(self, datelike):
         return is_weekend(datelike)
 
     def weekday(self, datelike):
         return datelike
 
-    weekends = weekends
+    def get_calendar_holidays():
+        return self.cal.get_calendar_holidays(self.year)
 
-    def holidays(self):
-        cal = NotreDame()
-        return [Event(h) for d, label in cal.holidays()]
+    weekends = weekends
