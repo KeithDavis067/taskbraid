@@ -1,8 +1,9 @@
 from datetime import datetime, time, date, timedelta
-from .model import CalendarElement, TimeDigit, TimeRegister
+from .model import CalendarElement, TimeDigit, TimeRegister, Year, EventWrap, ETZ as TZ
 import plotly.graph_objects as go
 import calendar
 import numpy as np
+import pandas as pd
 
 # Fundamental ploting plan:
 # Central .2 is taken up by the year value.
@@ -19,71 +20,70 @@ RSPACING = 0
 DR = (1 - POLAR_CORE - RSPACING * (NGROUPS - 1)) / NGROUPS
 
 
+def localize_any(obj, tz):
+    try:
+        return tz.localize(obj)
+    except ValueError:
+        if obj.tzinfo:
+            return obj
+    except AttributeError:
+        return tz.localize(datetime.combine(obj, time(0, 0)))
+    return obj
+
+
 def to_theta(datevalue, year=None):
-    if year is None:
-        try:
-            year = datevalue.year
-        except AttributeError:
-            year = datetime.today().year
+    try:
+        year = Year(year)
+    except TypeError:
+        pass
 
-    ce = CalendarElement(year=year)
-    days = ce.date_to_unit(datevalue)
-    return 360 / len(list(ce.recursive_iteration("day"))) * days
+    return year.to_theta(datevalue)
 
 
-def event_to_barpolar_values(event, days_to_theta=None):
-    if days_to_theta is None:
-        days_to_theta = 365 / 360
+def events_to_dataframe(events, year):
+    """ Extract calendar specific details from events into a dataframe."""
+    df = pd.DataFrame(data=events)
 
-    if timedelta(days=7) < event.duration:
-        group = 0
+    try:
+        df["duration"] = df["Event_obj"].apply(lambda ev: ev.duration)
+    except AttributeError:
+        df["Event_obj"].apply(lambda eve: EventWrap(eve))
+        df["duration"] = df["Event_obj"].apply(lambda ev: ev.duration)
 
-    if timedelta(days=1) < event.duration <= timedelta(days=7):
-        group = 1
+    df["mid"] = pd.to_datetime(df["Event_obj"].apply(
+        lambda ev: localize_any(ev.mid, TZ)), utc=True).dt.tz_convert(TZ)
+    df["start"] = pd.to_datetime(df["Event_obj"].apply(
+        lambda ev: localize_any(ev.start, TZ)), utc=True).dt.tz_convert(TZ)
+    df["end"] = pd.to_datetime(df["Event_obj"].apply(
+        lambda ev: localize_any(ev.end, TZ)), utc=True).dt.tz_convert(TZ)
 
-    if timedelta(days=1) == event.duration:
-        group = 2
-
-    if timedelta(hours=1) <= event.duration < timedelta(days=1):
-        group = 3
-    if event.duration < timedelta(hours=1):
-        group = 4
-
-    base = POLAR_CORE + group * (DR + RSPACING)
-    r = DR
-
-    width = event.duration / timedelta(days=1) * days_to_theta
-    theta = to_theta(event.mid)
-    return (base, r, theta, width)
+    df["summary"] = df["Event_obj"].apply(lambda ev: ev.summary)
+    return df
 
 
-def events_to_trace(events, days_to_theta=None, type="barpolar"):
-    if type == "barpolar":
-        return events_to_barpolar(events, days_to_theta=days_to_theta)
-    if type == "scatterpolar":
-        return events_to_scatterpolar(events, days_to_theta=days_to_theta)
+def selected_cals_to_dataframe(gcal, selcal, year):
+    """Return a dataframe for plotly from a collection of calendars."""
+    try:
+        year = Year(year.year)
+    except AttributeError:
+        year = Year(year)
 
+    dfs = []
+    for cal in selcal:
+        events = gcal.get_events(datetime(year.year, 1, 1),
+                                 datetime(year.year, 12, 31),
+                                 single_events=True,
+                                 calendar_id=cal.calendar_id,
+                                 )
+        df = events_to_dataframe(events)
+        dfs.append(df)
+        df["color"] = cal.background_color
+        df["calendar_id"] = cal.calendar_id
+        df["calendar"] = cal.summary
+        df["weekday"] = df.start.apply(year.weekday)
 
-def events_to_barpolar(events, days_to_theta=None):
-    b = []
-    r = []
-    t = []
-    w = []
-    tx = []
-    for i, event in enumerate(events):
-        bb, rr, tt, ww = event_to_barpolar_values(event, days_to_theta)
-        b.append(bb)
-        r.append(rr)
-        t.append(tt)
-        w.append(ww)
-        tx.append(" ".join((str(i), str(event.mid),
-                  event.summary)))
-    if type == "bar":
-        return go.Barpolar(base=b, r=r, theta=t, width=w, text=tx)
-
-
-def events_to_scatterpolar(events, days_to_theta):
-    pass
+    df = pd.concat(dfs, axis="rows", ignore_index=True)
+    return df
 
 
 def polar_to_cart(r, theta):

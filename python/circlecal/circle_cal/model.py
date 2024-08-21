@@ -692,7 +692,12 @@ class CalendarElement:
         self.digits = {}
         for u in UNITS:
             try:
-                self.set_unit(u, kwargs[u])
+                try:
+                    # Fist kwarg may be date, time or datetime..
+                    self.set_unit(u, getattr(
+                        kwargs[list(kwargs.keys())[0]], u))
+                except AttributeError:
+                    self.set_unit(u, kwargs[u])
             except KeyError:
                 # Do nothing if no value passed for u.
                 continue
@@ -1348,7 +1353,7 @@ class Year(CalendarElement):
         return is_weekend(datelike)
 
     def weekday(self, datelike):
-        return datelike
+        return weekday(datelike)
 
     def get_calendar_holidays():
         return self.cal.get_calendar_holidays(self.year)
@@ -1356,36 +1361,56 @@ class Year(CalendarElement):
     weekends = weekends
 
 
-def calendars_to_dataframe(gcal, selcal, year):
-    if isinstance(year, int):
-        year = Year(year)
-    dfs = []
-    for cal in selcal:
-        events = gcal.get_events(year.start.datetime(),
-                                 year.stop.datetime(),
-                                 single_events=True,
-                                 calendar_id=cal.calendar_id,
-                                 )
+TD_UNITS = ["days", "hours", "minutes", "seconds", "microseconds"]
+TD_STORE_UNITS = ["microseconds", "seconds", "days"]
 
-        df = pd.DataFrame(data=[EventWrap(ev) for ev in events if ev.other["eventType"] != "workingLocation"],
-                          columns=["Event_obj"]
-                          )
 
-        df["color"] = cal.background_color
-        df["calendar_id"] = cal.calendar_id
-        df["calendar"] = cal.summary
-        dfs.append(df)
+def whole_unit(td):
+    for u in TD_UNITS:
+        if td_is_zero(td % timedelta(**{u: 1})):
+            return u
+    return u
 
-    df = pd.concat(dfs, axis="rows", ignore_index=True)
-    df["duration"] = df["Event_obj"].apply(lambda ev: ev.duration)
-    df["mid"] = pd.to_datetime(df["Event_obj"].apply(
-        lambda ev: localize_any(ev.mid, ETZ)), utc=True).dt.tz_convert(ETZ)
-    df["start"] = pd.to_datetime(df["Event_obj"].apply(
-        lambda ev: localize_any(ev.start, ETZ)), utc=True).dt.tz_convert(ETZ)
-    df["end"] = pd.to_datetime(df["Event_obj"].apply(
-        lambda ev: localize_any(ev.end, ETZ)), utc=True).dt.tz_convert(ETZ)
-# df["end"] = df["Event_obj"].apply(lambda ev: ev.end)
 
-    df["summary"] = df["Event_obj"].apply(lambda ev: ev.summary)
-    df["weekday"] = df.start.apply(weekday)
-    return df
+def td_is_zero(td):
+    for u in TD_STORE_UNITS:
+        if getattr(td, u) != 0:
+            return False
+    return True
+
+
+class CalendarPeriod:
+    @property
+    def duration(self):
+        return self.end.datetime() - self.start.datetime()
+
+    def whole_unit(self):
+        return whole_unit(self.duration)
+
+    def __len__(self):
+        u = self.whole_unit()
+        length = self.duration / timedelta(**{u: 1}) + 1
+        if length % 1 != 0:
+            raise TypeError(f"{length} is not a whole number.")
+        return int(length)
+
+    def __init__(self, start, end=None, duration=None):
+        if end < start:
+            raise TypeError("End must occur after or equal to start.")
+        self.start = CalendarElement(datetime=start)
+        try:
+            self.end = self.CalendarElement(
+                self.start.datetime() + self.duration)
+        except AttributeError:
+            try:
+                self.end = CalendarElement(datetime=end)
+            except AttributeError:
+                raise TypeError("One of 'duration' or 'end' needed.")
+
+    def __getitem__(self, i):
+        u = self.whole_unit()
+        dt = self.start.datetime() + timedelta(**{u: i})
+        if dt > self.end:
+            raise IndexError
+
+        return CalendarElement(datetime=dt)
