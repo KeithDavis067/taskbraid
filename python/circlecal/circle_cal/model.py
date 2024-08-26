@@ -4,7 +4,7 @@ from dateutil.parser import parse
 from dateutil.relativedelta import relativedelta
 from calendar import monthrange, month_name, day_name
 from collections import namedtuple
-from workalendar.usa import UnitedStates
+from workalendar.usa import UnitedStates, Indiana
 from pytz import timezone
 
 
@@ -1245,7 +1245,7 @@ def is_weekend(datelike):
 
 def weekends(yearlike):
     try:
-        g = yearlike.subunit_generator("day")
+        g = iter(yearlike)
     except AttributeError:
         try:
             g = Year(yearlike.year).subunit_generator("day")
@@ -1299,55 +1299,162 @@ def season_events(obj):
     return dates
 
 
-class Year(CalendarElement):
-    @ property
-    def DATES(self):
+class NotreDame(Indiana):
+    include_easter_monday = True
+    include_good_friday = True
+    include_easter_sunday = True
+    include_christmas_eve = True
+
+
+class CalendarPeriod:
+    @property
+    def duration(self):
+        return self.end - self.start
+
+    def __len__(self):
+        u = self.whole_unit()
+        if u == "month":
+            for i, c in enumerate(self):
+                pass
+            return i + 1
+
+        else:
+            length = self.duration / timedelta(**{u: 1})
+            if length % 1 != 0:
+                raise TypeError(f"{length} is not a whole number.")
+            return int(length)
+
+    def __init__(self, start, end=None, duration=None, name=None):
+        if not isinstance(start, datetime):
+            start = datetime.combine(start, time())
+        self.start = start
+
+        if end is not None:
+            if not isinstance(end, datetime):
+                end = datetime.combine(start, time())
+
+            self.end = end
+
+        else:
+            try:
+                self.end = self.start + duration
+            except TypeError as e:
+                raise TypeError("One of keywords 'start' "
+                                "or 'duration' must be set.") from e
+
+        if name is not None:
+            self.name = name
+
+    def __getitem__(self, i):
         try:
-            if self._dates is not None:
-                return self._dates
+            start = i.start
         except AttributeError:
-            pass
-        self._dates = list(self.subunit_generator("day"))
-        return self._dates
+            start = i
 
-    def __init__(self, year, **kwargs):
-        super(Year, self).__init__(year=year, **kwargs)
-
-        self.cal = UnitedStates()
-        self.theta_per_day = 360 / len(self.DATES)
         try:
-            self.ACADEMIC_EVENTS = kwargs.pop("academic_events")
-        except KeyError:
-            self.ACADEMIC_EVENTS = []
+            if i.stop is None:
+                stop = start
+            else:
+                stop = i.stop
+        except AttributeError:
+            stop = start
 
+        try:
+            if i.step is None:
+                step = 1
+            else:
+                step = i.step
+        except AttributeError:
+            step = 1
+
+        if self.is_whole_months():
+            months = self.end.month - self.start.month
+            if start > months:
+                raise IndexError
+
+            begin_month = self.start
+            # If start is not 0, add months until we are at th start-th month
+            # from self.start.
+            for j in range(self.start.month, self.start.month + start):
+                begin_month += timedelta(
+                    days=monthrange(begin_month.year, j)[1])
+            months = []
+            for j in range(begin_month.month, begin_month.month + 1, step):
+                start_date = datetime(year=begin_month.year,
+                                      month=begin_month.month,
+                                      day=begin_month.day)
+                end_date = datetime(year=begin_month.year,
+                                    month=begin_month.month,
+                                    day=monthrange(begin_month.year,
+                                                   begin_month.month)[1])
+                months.append(CalendarPeriod(start=start_date, end=end_date,
+                                             name=month_name[begin_month.month]))
+            if start == stop:
+                return months[0]
+            else:
+                return months
+
+        else:
+            u = self.whole_unit()
+            items = []
+            for j in range(start, stop + 1, step):
+                dt = self.start + timedelta(**{u: j})
+                end_dt = dt + timedelta(**{u: 1})
+                if end_dt > self.end:
+                    break
+                items.append(CalendarPeriod(dt, end_dt))
+            if items[0].end > self.end:
+                raise IndexError
+            if start == stop:
+                return items[0]
+            return items
+
+    def len_by_days(self):
+        return self.duration / timedelta(days=1) + 1
+
+    def __str__(self):
+        return f"({self.start}, {self.end})"
+
+    def subunit_generator(self, unit):
+        for sub in self:
+            if sub.whole_unit() == unit:
+                yield sub
+            else:
+                yield from sub.subunit_generator(unit)
+
+
+class Year(CalendarPeriod):
     season_events = season_events
 
-    def academic_events(self):
-        return self.academic_events
+    def __init__(self, year):
+        super().__init__(start=datetime(year, 1, 1),
+                         end=datetime(year, 12, 31))
+        self.year = year
+        self.cal = NotreDame()
+        self.THETA_PER_DAY = 360 / self.len_by_days()
 
-    def day_to_date(self, day_int):
-        return self.DATES[day_int]
+    def date_to_day(self, obj):
+        return list(self).index(CalendarElement(year=obj.year,
+                                                month=obj.month,
+                                                day=obj.day))
 
-    def date_to_day(self, date):
-        try:
-            return self.DATES.index(date)
-        except ValueError:
-            pass
+    def day_to_date(self, i):
+        ce = self[i]
+        return date(year=ce.year.value, month=ce.month.value, day=ce.day.value)
 
-        try:
-            return self.DATES.index(CalendarElement(year=date.year,
-                                                    month=date.month,
-                                                    day=date.day))
-        except ValueError as e:
-            raise ValueError(f"{date} not in {self.year}") from e
+    def day_to_datetime(self, i):
+        return self[i].datetime()
 
     def to_theta(self, value):
         try:
-            dt = value - self.start.datetime()
+            dt = value - self.start
         except TypeError:
-            dt = datetime.combine(value, time(0, 0)) - self.start.datetime()
+            try:
+                dt = datetime.combine(value, time(0, 0)) - self.start
+            except TypeError:
+                dt = value
 
-        return dt/timedelta(days=1) * self.theta_per_day
+        return dt / timedelta(days=1) * self.THETA_PER_DAY
 
     def is_weekend(self, datelike):
         return is_weekend(datelike)
@@ -1355,7 +1462,7 @@ class Year(CalendarElement):
     def weekday(self, datelike):
         return weekday(datelike)
 
-    def get_calendar_holidays():
+    def get_calendar_holidays(self):
         return self.cal.get_calendar_holidays(self.year)
 
     weekends = weekends
@@ -1365,11 +1472,47 @@ TD_UNITS = ["days", "hours", "minutes", "seconds", "microseconds"]
 TD_STORE_UNITS = ["microseconds", "seconds", "days"]
 
 
-def whole_unit(td):
+def whole_unit(obj):
+    if is_whole_years(obj):
+        return "year"
+
+    if is_whole_months(obj):
+        return "month"
+
+    td = obj.end - obj.start
+
     for u in TD_UNITS:
         if td_is_zero(td % timedelta(**{u: 1})):
             return u
     return u
+
+
+def is_whole_months(obj):
+    if obj.start.day != 1:
+        return False
+
+    if obj.end.day != monthrange(obj.end.year, obj.end.month)[1]:
+        return False
+    return True
+
+
+def is_whole_years(obj):
+    if obj.end.year < obj.start.year:
+        return False
+
+    if obj.start.month != 1:
+        return False
+
+    if obj.start.day != 1:
+        returbn False
+
+    if obj.end.month != 12:
+        return False
+
+    if obj.end.day != 31:
+        return False
+
+    return True
 
 
 def td_is_zero(td):
@@ -1377,40 +1520,3 @@ def td_is_zero(td):
         if getattr(td, u) != 0:
             return False
     return True
-
-
-class CalendarPeriod:
-    @property
-    def duration(self):
-        return self.end.datetime() - self.start.datetime()
-
-    def whole_unit(self):
-        return whole_unit(self.duration)
-
-    def __len__(self):
-        u = self.whole_unit()
-        length = self.duration / timedelta(**{u: 1}) + 1
-        if length % 1 != 0:
-            raise TypeError(f"{length} is not a whole number.")
-        return int(length)
-
-    def __init__(self, start, end=None, duration=None):
-        if end < start:
-            raise TypeError("End must occur after or equal to start.")
-        self.start = CalendarElement(datetime=start)
-        try:
-            self.end = self.CalendarElement(
-                self.start.datetime() + self.duration)
-        except AttributeError:
-            try:
-                self.end = CalendarElement(datetime=end)
-            except AttributeError:
-                raise TypeError("One of 'duration' or 'end' needed.")
-
-    def __getitem__(self, i):
-        u = self.whole_unit()
-        dt = self.start.datetime() + timedelta(**{u: i})
-        if dt > self.end:
-            raise IndexError
-
-        return CalendarElement(datetime=dt)

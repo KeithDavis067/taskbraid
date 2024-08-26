@@ -40,14 +40,14 @@ def to_theta(datevalue, year=None):
     return year.to_theta(datevalue)
 
 
-def events_to_dataframe(events, year):
+def events_to_dataframe(events):
     """ Extract calendar specific details from events into a dataframe."""
-    df = pd.DataFrame(data=events)
+    df = pd.DataFrame(data=events, columns=["Event_obj"])
 
     try:
         df["duration"] = df["Event_obj"].apply(lambda ev: ev.duration)
     except AttributeError:
-        df["Event_obj"].apply(lambda eve: EventWrap(eve))
+        df["Event_obj"] = df["Event_obj"].apply(lambda eve: EventWrap(eve))
         df["duration"] = df["Event_obj"].apply(lambda ev: ev.duration)
 
     df["mid"] = pd.to_datetime(df["Event_obj"].apply(
@@ -70,8 +70,8 @@ def selected_cals_to_dataframe(gcal, selcal, year):
 
     dfs = []
     for cal in selcal:
-        events = gcal.get_events(datetime(year.year, 1, 1),
-                                 datetime(year.year, 12, 31),
+        events = gcal.get_events(year.start,
+                                 year.end,
                                  single_events=True,
                                  calendar_id=cal.calendar_id,
                                  )
