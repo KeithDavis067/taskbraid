@@ -1306,23 +1306,108 @@ class NotreDame(Indiana):
     include_christmas_eve = True
 
 
+def whole_unit(obj):
+    if is_whole_years(obj):
+        return "years"
+
+    if is_whole_months(obj):
+        return "months"
+
+    td = obj.end - obj.start
+
+    for u in TD_UNITS:
+        if td_is_zero(td % timedelta(**{u: 1})):
+            return u
+    return u
+
+
+def is_whole_months(obj):
+    if obj.start.day != 1:
+        return False
+
+    if obj.end.day != monthrange(obj.end.year, obj.end.month)[1]:
+        return False
+    return True
+
+
+def is_whole_years(obj):
+    if obj.end.year < obj.start.year:
+        return False
+
+    if obj.start.month != 1:
+        return False
+
+    if obj.start.day != 1:
+        return False
+
+    if obj.end.month != 12:
+        return False
+
+    if obj.end.day != 31:
+        return False
+
+    return True
+
+
+def _n_u(obj, u=None):
+    wu = whole_unit(obj)
+    if u is None:
+        u = wu
+    else:
+        if u not in [wu] + _subunits(wu):
+            raise ValueError(
+                f"unit '{u}' is larger than whole unit '{wu}' of period.")
+    match u:
+        case "years":
+            return obj.end.year - obj.start.year + 1
+
+        case "months":
+            return obj.end.month - obj.start.month + 1
+        case _:
+            return obj.duration / timedelta(**{u: 1})
+
+
+def _iterate_months(obj, start, stop, step):
+    months = obj.end.month - obj.start.month
+    if start > months:
+        raise IndexError
+
+    begin_month = obj.start
+    # If start is not 0, add months until we are at th start-th month
+    # from obj.start.
+    for j in range(obj.start.month, obj.start.month + start):
+        begin_month += timedelta(
+            days=monthrange(begin_month.year, j)[1])
+    months = []
+    for j in range(begin_month.month, begin_month.month + 1, step):
+        start_date = datetime(year=begin_month.year,
+                              month=begin_month.month,
+                              day=begin_month.day)
+        end_date = datetime(year=begin_month.year,
+                            month=begin_month.month,
+                            day=monthrange(begin_month.year,
+                                           begin_month.month)[1])
+        months.append(CalendarPeriod(start=start_date, end=end_date,
+                                     name=month_name[begin_month.month]))
+    if start == stop:
+        return months[0]
+    else:
+        return months
+
+
+def _dt_to_dict(dt):
+    return dict([(u, getattr(dt, u)) in UNITS])
+
+
 class CalendarPeriod:
     @property
     def duration(self):
         return self.end - self.start
 
-    def __len__(self):
-        u = self.whole_unit()
-        if u == "month":
-            for i, c in enumerate(self):
-                pass
-            return i + 1
+    whole_unit = whole_unit
 
-        else:
-            length = self.duration / timedelta(**{u: 1})
-            if length % 1 != 0:
-                raise TypeError(f"{length} is not a whole number.")
-            return int(length)
+    def __len__(self):
+        return _n_u(self)
 
     def __init__(self, start, end=None, duration=None, name=None):
         if not isinstance(start, datetime):
@@ -1357,7 +1442,7 @@ class CalendarPeriod:
             else:
                 stop = i.stop
         except AttributeError:
-            stop = start
+            stop = start + 1
 
         try:
             if i.step is None:
@@ -1367,47 +1452,18 @@ class CalendarPeriod:
         except AttributeError:
             step = 1
 
-        if self.is_whole_months():
-            months = self.end.month - self.start.month
-            if start > months:
-                raise IndexError
+        stop = stop + step
 
-            begin_month = self.start
-            # If start is not 0, add months until we are at th start-th month
-            # from self.start.
-            for j in range(self.start.month, self.start.month + start):
-                begin_month += timedelta(
-                    days=monthrange(begin_month.year, j)[1])
-            months = []
-            for j in range(begin_month.month, begin_month.month + 1, step):
-                start_date = datetime(year=begin_month.year,
-                                      month=begin_month.month,
-                                      day=begin_month.day)
-                end_date = datetime(year=begin_month.year,
-                                    month=begin_month.month,
-                                    day=monthrange(begin_month.year,
-                                                   begin_month.month)[1])
-                months.append(CalendarPeriod(start=start_date, end=end_date,
-                                             name=month_name[begin_month.month]))
-            if start == stop:
-                return months[0]
-            else:
-                return months
-
+        wu = self.whole_unit()
+        dtdict = _dt_to_dict(self.start)
+        dtdict.update({wu[:-1]: start})
+        new_start = datetime(**dtdict())
+        if wu == "months":
+            dtdict.update(
+                {"day": monthrange(new_start.year, new_start.month)[1]})
+        elif wu == "years":
+            dtdict.update({"month": 12, "day": 31})
         else:
-            u = self.whole_unit()
-            items = []
-            for j in range(start, stop + 1, step):
-                dt = self.start + timedelta(**{u: j})
-                end_dt = dt + timedelta(**{u: 1})
-                if end_dt > self.end:
-                    break
-                items.append(CalendarPeriod(dt, end_dt))
-            if items[0].end > self.end:
-                raise IndexError
-            if start == stop:
-                return items[0]
-            return items
 
     def len_by_days(self):
         return self.duration / timedelta(days=1) + 1
@@ -1470,49 +1526,6 @@ class Year(CalendarPeriod):
 
 TD_UNITS = ["days", "hours", "minutes", "seconds", "microseconds"]
 TD_STORE_UNITS = ["microseconds", "seconds", "days"]
-
-
-def whole_unit(obj):
-    if is_whole_years(obj):
-        return "year"
-
-    if is_whole_months(obj):
-        return "month"
-
-    td = obj.end - obj.start
-
-    for u in TD_UNITS:
-        if td_is_zero(td % timedelta(**{u: 1})):
-            return u
-    return u
-
-
-def is_whole_months(obj):
-    if obj.start.day != 1:
-        return False
-
-    if obj.end.day != monthrange(obj.end.year, obj.end.month)[1]:
-        return False
-    return True
-
-
-def is_whole_years(obj):
-    if obj.end.year < obj.start.year:
-        return False
-
-    if obj.start.month != 1:
-        return False
-
-    if obj.start.day != 1:
-        returbn False
-
-    if obj.end.month != 12:
-        return False
-
-    if obj.end.day != 31:
-        return False
-
-    return True
 
 
 def td_is_zero(td):
