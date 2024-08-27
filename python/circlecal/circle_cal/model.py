@@ -1354,7 +1354,7 @@ def _n_u(obj, u=None):
     if u is None:
         u = wu
     else:
-        if u not in [wu] + _subunits(wu):
+        if u not in [wu] + _subunits(wu[0:-1]):
             raise ValueError(
                 f"unit '{u}' is larger than whole unit '{wu}' of period.")
     match u:
@@ -1395,8 +1395,14 @@ def _iterate_months(obj, start, stop, step):
         return months
 
 
-def _dt_to_dict(dt):
-    return dict([(u, getattr(dt, u)) in UNITS])
+def datelike_to_dict(dt):
+    d = {}
+    for u in UNITS:
+        try:
+            d[u] = getattr(dt, u)
+        except AttributeError:
+            pass
+    return d
 
 
 class CalendarPeriod:
@@ -1455,15 +1461,36 @@ class CalendarPeriod:
         stop = stop + step
 
         wu = self.whole_unit()
-        dtdict = _dt_to_dict(self.start)
-        dtdict.update({wu[:-1]: start})
-        new_start = datetime(**dtdict())
-        if wu == "months":
-            dtdict.update(
-                {"day": monthrange(new_start.year, new_start.month)[1]})
-        elif wu == "years":
-            dtdict.update({"month": 12, "day": 31})
-        else:
+        if _n_u(self, wu) == 1:
+            wu = _subunit(wu[0:-1]) + "s"
+
+        items = []
+        for j in range(start, stop, step):
+            if wu == "years":
+                year = self.start.year + j
+                start_date = datetime(year, 1, 1)
+                end_date = datetime(year, 12, 31)
+                name = str(year)
+
+            elif wu == "months":
+                start_date = _set_month(self.start, j + 1)
+                end_date = _set_month(self.end, j + 1)
+                name = month_name[start_date.month]
+            else:
+                start_date = self.start + timedelta(**{wu[:-1]: j})
+                end_date = self.start + timedelta(**{wu[:-1]: j + 1})
+                name = None
+
+            items.append(CalendarPeriod(start_date, end_date, name=name))
+
+        # If we ask for items that are beyond 'end' that is an IndexError.
+        if any([item.start > self.end for item in items]):
+            raise IndexError
+
+        # Iteration asking for a single item should not get a list.
+        if stop == start + step:
+            return items[0]
+        return items
 
     def len_by_days(self):
         return self.duration / timedelta(days=1) + 1
@@ -1477,6 +1504,21 @@ class CalendarPeriod:
                 yield sub
             else:
                 yield from sub.subunit_generator(unit)
+
+
+def _inc_months(dt, i):
+    year = dt.year
+    month = dt.month
+    day = dt.day
+    month = month + i
+    year += month % 12
+
+    if dt.day == monthrange(dt.year, dt.month)[1]:
+        day = monthrange(year, month)[1]
+
+    d = datelike_to_dict(dt)
+    d.update({"year": year, "month": month, "day": day})
+    return dt.__class__(**d)
 
 
 class Year(CalendarPeriod):
