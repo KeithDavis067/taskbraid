@@ -1313,7 +1313,7 @@ def whole_unit(obj):
     if is_whole_months(obj):
         return "months"
 
-    td = obj.end - obj.start
+    td = obj.last - obj.start
 
     for u in TD_UNITS:
         if td_is_zero(td % timedelta(**{u: 1})):
@@ -1335,20 +1335,20 @@ def is_whole_months(obj):
     if obj.start.day != 1:
         return False
 
-    if obj.end.day != monthrange(obj.end.year, obj.end.month)[1]:
+    if obj.last.day != monthrange(obj.last.year, obj.last.month)[1]:
         return False
 
     if _any_smaller_unit_is_nonzero(obj.start, "day"):
         return False
 
-    if _any_smaller_unit_is_nonzero(obj.end, "day"):
+    if _any_smaller_unit_is_nonzero(obj.last, "day"):
         return False
 
     return True
 
 
 def is_whole_years(obj):
-    if obj.end.year < obj.start.year:
+    if obj.last.year < obj.start.year:
         return False
 
     if obj.start.month != 1:
@@ -1357,19 +1357,26 @@ def is_whole_years(obj):
     if obj.start.day != 1:
         return False
 
-    if obj.end.month != 12:
+    if obj.last.month != 12:
         return False
 
-    if obj.end.day != 31:
+    if obj.last.day != 31:
         return False
 
     if _any_smaller_unit_is_nonzero(obj.start, "day"):
         return False
 
-    if _any_smaller_unit_is_nonzero(obj.end, "day"):
+    if _any_smaller_unit_is_nonzero(obj.last, "day"):
         return False
 
     return True
+
+
+def _zero_list(obj):
+    i = 0
+    while _any_smaller_unit_is_nonzero(obj, UNITS[i]):
+        i += 1
+    return UNITS[i:]
 
 
 def _n_u(obj, u=None):
@@ -1382,12 +1389,11 @@ def _n_u(obj, u=None):
                 f"unit '{u}' is larger than whole unit '{wu}' of period.")
     match u:
         case "years":
-            return obj.end.year - obj.start.year + 1
+            return obj.last.year - obj.start.year + 1
 
         case "months":
-            return obj.end.month - obj.start.month + 1
+            return obj.last.month - obj.start.month + 1
         case _:
-            print(u, obj.duration)
             return obj.duration / timedelta(**{u: 1})
 
 
@@ -1426,9 +1432,26 @@ def datelike_to_end(obj):
 
 
 class CalendarPeriod:
+    """ A period of time as a collection of units of time.
+
+    A CalendarPeriod is a specified span of time that can be proken into 
+    smaller units. For instance, the year '2000' lasts from the day 
+    Jan 1, 2000 to Dec 31, 2000, but includes all of Dec31st, 2000.
+    That is the whole day from Dec 31, 2000 00:00:00.000000 to
+    Dec 31, 2000 23:59:59.999999. It also includes the leap day Feb. 29.
+    The size of the periods in the collection are determined as the
+    largest period that can accurately hold the full period. For instance:
+    y2020 = CalendarPeriod(start=datetime(2000, 1, 1), last=datetime(2000, 12, 31)
+    will include the whole year as months where 
+    y2020 = CalendarPeriod(start=datetime(2000, 1, 1), last=datetime(2000, 12, 30)
+    Will include the period from Dec 31, 2000 00:00:00.000000 to
+    Dec 30, 2000 23:59:59.999999. When treated as a collection, it will return
+    days, rather than months.
+    """
+
     @property
     def stop(self):
-        return datelike_to_end(self.end) + timedelta(microseconds=1)
+        return datelike_to_end(self.last) + timedelta(microseconds=1)
 
     @property
     def duration(self):
@@ -1447,23 +1470,42 @@ class CalendarPeriod:
                 result = int(result)
         return result
 
-    def __init__(self, start, end=None, duration=None, name=None):
+    def __init__(self, start, last=None, end=None, duration=None, name=None):
+        """ 
+        Parameters:
+            start: a date or datetime representing the first moment in time for this period.
+            last: a date or datetime represent int the last period in time for this period.
+                Last refers to the beginning moment of the last period of time. So:
+                Dec 31, 2000 refers to the day from Dec 31, 2000 to one microsecond before Jan 1, 2001.
+            end: A date or datetime representing the very last moment in time of the period.
+                Ignored if last is set. Setting with 'last' is preferred.
+        """
         if not isinstance(start, datetime):
             start = datetime.combine(start, time())
         self.start = start
 
-        if end is not None:
-            if not isinstance(end, datetime):
+        if last is not None:
+            if not isinstance(last, datetime):
                 end = datetime.combine(end, time())
 
-            self.end = end
+            self.last = last
 
+        elif duration is not None:
+            self.last = self.start + duration
         else:
             try:
-                self.end = self.start + duration
+                z = _zero_list(end)
             except TypeError as e:
-                raise TypeError("One of keywords 'start' "
-                                "or 'duration' must be set.") from e
+                raise TypeError(
+                    f"One of 'last', 'duration', or 'end' must be set.") from e
+
+            d = datelike_to_dict(last)
+            for u in z:
+                try:
+                    d[u] = RANGES[u][-1]
+                except AttributeError:
+                    d[u] = monthrange(last.year, last.month)[1]
+            self.end = datetime(**d)
 
         if name is not None:
             self.name = name
@@ -1497,29 +1539,29 @@ class CalendarPeriod:
             if iu == "years":
                 year = self.start.year + j
                 start_date = datetime(year, 1, 1)
-                end_date = datetime(year, 12, 31)
+                last_date = datetime(year, 12, 31)
                 name = str(year)
 
             elif iu == "months":
                 start_date = _inc_months(self.start, j)
-                d = datelike_to_dict(self.end)
+                d = datelike_to_dict(self.last)
                 d.update({"year": start_date.year,
                           "month": start_date.month,
                           "day": monthrange(start_date.year,
                                             start_date.month)[1]})
-                end_date = self.end.__class__(**d)
+                last_date = self.last.__class__(**d)
                 name = month_name[start_date.month]
             else:
                 start_date = self.start + timedelta(**{iu: j})
-                end_date = self.start + timedelta(**{iu: j + 1})
+                last_date = self.start + timedelta(**{iu: j + 1})
                 name = None
 
-            if end_date > self.end:
+            if start_date > self.last:
                 raise IndexError
 
-            items.append(CalendarPeriod(start_date, end_date, name=name))
+            items.append(CalendarPeriod(start_date, last_date, name=name))
 
-        # If we ask for items that are beyond 'end' that is an IndexError.
+        # If we ask for items that are beyond 'last' that is an IndexError.
 
         # Iteration asking for a single item should not get a list.
         if stop == start + step:
@@ -1530,30 +1572,39 @@ class CalendarPeriod:
         return self.duration / timedelta(days=1)
 
     def __str__(self):
-        return f"({self.start}, {self.end})"
+        return f"({self.start}, {self.last})"
 
     def subunit_generator(self, unit):
-        if unit[-1] == "s":
-            raise TypeError(
-                'Units must be expresses as single (ie. "day", not "days")')
-        if (self.whole_unit() == unit):
+        unit, units = _unit_pl(unit)
+        selfu, selfus = _unit_pl(self.whole_unit())
+
+        if (selfu == unit):
             yield from self
         else:
-            if unit not in _subunits(self.whole_unit()):
-                raise TypeError(f"Cannot yield unit not in {
-                                [self.whole_unit()] +
-                                _subunits(self.whole_unit())}")
+            if unit not in _subunits(selfu):
+                raise TypeError(
+                    f"Cannot yield unit not in {[selfu] + _subunits(selfu)}")
             else:
                 for sub in self:
-                    if sub.whole_unit() == unit:
+                    if sub.whole_unit() == units:
                         yield sub
                     else:
-                        yield from sub.subunit_generator(unit)
+                        yield from sub
 
     def __repr__(self):
-        return f"{self.__class__.__name__} {self.start} {self.end}"
+        return f"{self.__class__.__name__} {self.start} {self.last}"
 
     as_unit = subunit_generator
+
+
+def _unit_pl(unit):
+    if unit[-1] == "s":
+        units = unit
+        unit = unit[:-1]
+    else:
+        unit = unit
+        units = unit + "s"
+    return (unit, units)
 
 
 def _inc_months(dt, i):
@@ -1579,14 +1630,14 @@ class Year(CalendarPeriod):
 
     def __init__(self, year):
         super().__init__(start=datetime(year, 1, 1),
-                         end=datetime(year, 12, 31))
+                         last=datetime(year, 12, 31))
         self.year = year
         self.cal = NotreDame()
         self.THETA_PER_DAY = 360 / self.len_by_days()
 
     def date_to_day(self, obj):
         return list(self.as_unit("days")).index(
-            CalendarPeriod(start=obj, end=timedelta(days=1)))
+            CalendarPeriod(start=obj, last=timedelta(days=1)))
 
     def day_to_date(self, i):
         ce = self[i]
