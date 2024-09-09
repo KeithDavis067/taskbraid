@@ -1434,15 +1434,15 @@ def datelike_to_end(obj):
 class CalendarPeriod:
     """ A period of time as a collection of units of time.
 
-    A CalendarPeriod is a specified span of time that can be proken into 
-    smaller units. For instance, the year '2000' lasts from the day 
+    A CalendarPeriod is a specified span of time that can be proken into
+    smaller units. For instance, the year '2000' lasts from the day
     Jan 1, 2000 to Dec 31, 2000, but includes all of Dec31st, 2000.
     That is the whole day from Dec 31, 2000 00:00:00.000000 to
     Dec 31, 2000 23:59:59.999999. It also includes the leap day Feb. 29.
     The size of the periods in the collection are determined as the
     largest period that can accurately hold the full period. For instance:
     y2020 = CalendarPeriod(start=datetime(2000, 1, 1), last=datetime(2000, 12, 31)
-    will include the whole year as months where 
+    will include the whole year as months where
     y2020 = CalendarPeriod(start=datetime(2000, 1, 1), last=datetime(2000, 12, 30)
     Will include the period from Dec 31, 2000 00:00:00.000000 to
     Dec 30, 2000 23:59:59.999999. When treated as a collection, it will return
@@ -1452,6 +1452,8 @@ class CalendarPeriod:
     @property
     def stop(self):
         return datelike_to_end(self.last) + timedelta(microseconds=1)
+
+    end = stop
 
     @property
     def duration(self):
@@ -1471,7 +1473,7 @@ class CalendarPeriod:
         return result
 
     def __init__(self, start, last=None, end=None, duration=None, name=None):
-        """ 
+        """
         Parameters:
             start: a date or datetime representing the first moment in time for this period.
             last: a date or datetime represent int the last period in time for this period.
@@ -1592,55 +1594,61 @@ class CalendarPeriod:
                         yield from sub
 
     def __repr__(self):
-        return f"{self.__class__.__name__} {self.start} {self.last}"
+        rpr = [f"{self.whole_unit()[:-1]}"]
 
-    as_unit = subunit_generator
+        units = list(reversed(self._superunit
+        for u in list(reversed(_superunits(self.whole_unit()[:-1]))) + [self.whole_unit()[:-1]]:
+            rpr.append(str(getattr(self.start, u)))
+
+        return " ".join(rpr)
+
+    as_unit=subunit_generator
 
 
 def _unit_pl(unit):
     if unit[-1] == "s":
-        units = unit
-        unit = unit[:-1]
+        units=unit
+        unit=unit[:-1]
     else:
-        unit = unit
-        units = unit + "s"
+        unit=unit
+        units=unit + "s"
     return (unit, units)
 
 
 def _inc_months(dt, i):
-    month = dt.month + i % 12
-    year = dt.year + i // 12
+    month=dt.month + i % 12
+    year=dt.year + i // 12
     if month > 12:
         month += month % 12
         year += month // 12
 
     if dt.day == monthrange(dt.year, dt.month)[1]:
-        day = monthrange(year, month)[1]
+        day=monthrange(year, month)[1]
     else:
-        day = dt.day
+        day=dt.day
 
-    d = datelike_to_dict(dt)
+    d=datelike_to_dict(dt)
     d.update(dict(day=day, month=month, year=year))
 
     return dt.__class__(**d)
 
 
 class Year(CalendarPeriod):
-    season_events = season_events
+    season_events=season_events
 
     def __init__(self, year):
         super().__init__(start=datetime(year, 1, 1),
                          last=datetime(year, 12, 31))
-        self.year = year
-        self.cal = NotreDame()
-        self.THETA_PER_DAY = 360 / self.len_by_days()
+        self.year=year
+        self.cal=NotreDame()
+        self.THETA_PER_DAY=360 / self.len_by_days()
 
     def date_to_day(self, obj):
         return list(self.as_unit("days")).index(
             CalendarPeriod(start=obj, last=timedelta(days=1)))
 
     def day_to_date(self, i):
-        ce = self[i]
+        ce=self[i]
         return date(year=ce.year.value, month=ce.month.value, day=ce.day.value)
 
     def day_to_datetime(self, i):
@@ -1648,12 +1656,12 @@ class Year(CalendarPeriod):
 
     def to_theta(self, value):
         try:
-            dt = value - self.start
+            dt=value - self.start
         except TypeError:
             try:
-                dt = datetime.combine(value, time(0, 0)) - self.start
+                dt=datetime.combine(value, time(0, 0)) - self.start
             except TypeError:
-                dt = value
+                dt=value
 
         return dt / timedelta(days=1) * self.THETA_PER_DAY
 
@@ -1666,11 +1674,11 @@ class Year(CalendarPeriod):
     def get_calendar_holidays(self):
         return self.cal.get_calendar_holidays(self.year)
 
-    weekends = weekends
+    weekends=weekends
 
 
-TD_UNITS = ["days", "hours", "minutes", "seconds", "microseconds"]
-TD_STORE_UNITS = ["microseconds", "seconds", "days"]
+TD_UNITS=["days", "hours", "minutes", "seconds", "microseconds"]
+TD_STORE_UNITS=["microseconds", "seconds", "days"]
 
 
 def td_is_zero(td):
