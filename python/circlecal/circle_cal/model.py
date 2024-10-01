@@ -1245,22 +1245,21 @@ def is_weekend(datelike):
 
 def weekends(yearlike):
     try:
-        g = iter(yearlike)
+        g = yearlike.as_unit("day")
     except AttributeError:
         try:
-            g = Year(yearlike.year).subunit_generator("day")
-        except AttributeError:
-            g = Year(yearlike).subunit_generator("day")
+            g = Year(yearlike)
+        except TypeError:
+            g = Year(yearlike.year)
 
     ws = []
     start = None
-    for d in CalendarElement(year=2024).subunit_generator("day"):
-        d = d.datetime()
-        if is_weekend(d):
+    for d in g:
+        if is_weekend(d.start):
             if start is None:
-                start = d
+                start = d.start
             else:
-                ws.append(Event(start, end=d))
+                ws.append(CalendarPeriod(start, last=d.start))
                 start = None
     return ws
 
@@ -1451,11 +1450,23 @@ class CalendarPeriod:
 
     @property
     def stop(self):
+        """ The final, _non_inclusive_ microsecond of this period.
+        """
         return datelike_to_end(self.last) + timedelta(microseconds=1)
 
     @property
     def duration(self):
+        """ The total time over which them period lasts.
+
+        Self.stop - self.start.
+        """
         return self.stop - self.start
+
+    @property
+    def end(self):
+        """ The final moment _inclusive_ , to the microsecond, of this period.
+        """
+        return datelike_to_end(self.last)
 
     whole_unit = whole_unit
     item_unit = item_unit
@@ -1499,13 +1510,13 @@ class CalendarPeriod:
                 raise TypeError(
                     f"One of 'last', 'duration', or 'end' must be set.") from e
 
-            d = datelike_to_dict(last)
+            d = datelike_to_dict(end)
             for u in z:
                 try:
                     d[u] = RANGES[u][-1]
-                except AttributeError:
-                    d[u] = monthrange(last.year, last.month)[1]
-            self.end = datetime(**d)
+                except TypeError:
+                    d[u] = monthrange(end.year, end.month)[1]
+            self.last = datetime(**d)
 
         if name is not None:
             self.name = name
@@ -1572,7 +1583,7 @@ class CalendarPeriod:
         return self.duration / timedelta(days=1)
 
     def __str__(self):
-        return f"({self.start}, {self.last})"
+        return f"({self.start}, {self.end})"
 
     def subunit_generator(self, unit):
         unit, units = _unit_pl(unit)
