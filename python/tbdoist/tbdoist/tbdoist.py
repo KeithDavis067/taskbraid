@@ -16,10 +16,10 @@ import nxutils as nxu
 app = typer.Typer(chain=True)
 state = {"api": None}
 
-__all__ = ["ThrottledApi",
-           "td_obj_to_node_and_edges", "td_iter_to_graph",
-           "manage_supertask_link", "manage_supertask_links",
-           "td_g_to_tree_view"]
+__all__ = [  # "ThrottledApi",
+    "td_obj_to_node_and_edges", "td_iter_to_graph",
+    "manage_supertask_link", "manage_supertask_links",
+    "td_g_to_tree_view"]
 
 
 REQUEST_LIMIT = 450 / (15 * 60)  # 450 requests per 15 minutes.
@@ -38,49 +38,44 @@ TYPE_MAP = {Project: {"id": "project_id",
 # TODO: Write a tool to build smaller parts of the graph from tdapi.
 
 
-def build_local_graph(tdapi, obj):
-    try:
-        tmap = TYPE_MAP[type(obj)]
-    except KeyError:
-        raise f"Cannot build todoist_api map from type {type(obj)}."
-
-    obj_id = obj.id
-
-    succ = []
-    id_attr = TYPE_MAP[type(obj)]["id"]
-    for td_type in TYPE_MAP:
-        try:
-            hold = get
-
-
-def throttle_requests():
-    raise NotImplementedError()
+# def build_local_graph(tdapi, obj):
+#     try:
+#         tmap = TYPE_MAP[type(obj)]
+#     except KeyError:
+#         raise f"Cannot build todoist_api map from type {type(obj)}."
+#
+#     obj_id = obj.id
+#
+#     succ = []
+#     id_attr = TYPE_MAP[type(obj)]["id"]
+#     for td_type in TYPE_MAP:
+#         pass
 
 
-class ThrottledApi(TodoistAPI):
-    @ classmethod
-    def wrap_api_calls(cls):
-        for method in [getattr(super(), m) for m in dir(super())
-                       if not m.startswith("__") and
-                       callable(getattr(super(), m))]:
-            setattr(cls, throttle_requests(method))
-
-    @ property
-    def rql(self):
-        return self.request_limit
-
-    @ rql.setter
-    def rql(self, value):
-        self.request_limit = value
-
-    def __init__(self, *args, **kwargs):
-        self.request_limit = REQUEST_LIMIT
-        self.last_r_time = 0
-        self.r_rate = None
-        super().__init__(*args, **kwargs)
-
-    def update_rate(self):
-        print("Update Rate Here.")
+# class ThrottledApi(TodoistAPI):
+#     @ classmethod
+#     def wrap_api_calls(cls):
+#         for method in [getattr(super(), m) for m in dir(super())
+#                        if not m.startswith("__") and
+#                        callable(getattr(super(), m))]:
+#             setattr(cls, throttle_requests(method))
+#
+#     @ property
+#     def rql(self):
+#         return self.request_limit
+#
+#     @ rql.setter
+#     def rql(self, value):
+#         self.request_limit = value
+#
+#     def __init__(self, *args, **kwargs):
+#         self.request_limit = REQUEST_LIMIT
+#         self.last_r_time = 0
+#         self.r_rate = None
+#         super().__init__(*args, **kwargs)
+#
+#     def update_rate(self):
+#         print("Update Rate Here.")
 
 
 PROJECT_KEYS = ["color",
@@ -113,6 +108,7 @@ TASK_KEYS = [
     "created_at",
     "assignee_id",
     "assigner_id",
+    "duration",
     "url"]
 
 
