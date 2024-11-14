@@ -17,7 +17,8 @@ try:
 except ImportError:
     skyfield = False
 
-__all__ = ["CalendarElement", "TimeDigit"]
+__all__ = ["CalendarPeriod", "TimeDigit"]
+
 try:
     import pandas as pd
 except ImportError:
@@ -28,6 +29,23 @@ try:
     import pytest
 except ImportError:
     pass
+
+# The following combine to allow composite classes to
+# have a stop, start, duration, and end and mid.
+# Stop follows range naming convention: stop is the
+# non-inclusive end.
+# End is inclusive. You "end" on the last one.
+#
+
+
+def _unit_pl(unit):
+    if unit[-1] == "s":
+        units = unit
+        unit = unit[:-1]
+    else:
+        unit = unit
+        units = unit + "s"
+    return (unit, units)
 
 
 def get_duration(obj):
@@ -140,7 +158,8 @@ def test_subunit():
 
 
 def _subunits(unit):
-    if unit == UNITS[-1]:
+    u = _unit_pl(unit)[0]
+    if u == UNITS[-1]:
         return []
     return UNITS[UNITS.index(unit) + 1:]
 
@@ -158,7 +177,8 @@ def test_subunits():
 
 
 def _superunit(unit):
-    if unit == UNITS[0]:
+    u = _unit_pl(unit)[0]
+    if u == UNITS[0]:
         return None
     return UNITS[UNITS.index(unit) - 1]
 
@@ -169,7 +189,8 @@ def test_superunit():
 
 
 def _superunits(unit):
-    if unit == UNITS[0]:
+    u = _unit_pl(unit)[0]
+    if u == UNITS[0]:
         return []
     ru = list(reversed(UNITS))
     return ru[ru.index(unit) + 1:]
@@ -1245,21 +1266,21 @@ def is_weekend(datelike):
 
 def weekends(yearlike):
     try:
-        g = yearlike.as_unit("day")
+        g = iter(yearlike)
     except AttributeError:
         try:
-            g = Year(yearlike)
-        except TypeError:
-            g = Year(yearlike.year)
+            g = Year(yearlike.year).subunit_generator("day")
+        except AttributeError:
+            g = Year(yearlike).subunit_generator("day")
 
     ws = []
     start = None
     for d in g:
-        if is_weekend(d.start):
+        if is_weekend(d):
             if start is None:
-                start = d.start
+                start = d
             else:
-                ws.append(CalendarPeriod(start, last=d.start))
+                ws.append(Event(start, end=d))
                 start = None
     return ws
 
@@ -1430,18 +1451,25 @@ def datelike_to_end(obj):
     return datetime(**d)
 
 
+def test_datelike_to_end():
+    dt = datetime(2000, 1, 1)
+    assert datelike_to_end(dt) == datetime(2000, 1, 1, 23, 59, 59, 999999)
+    dt = datetime(2000, 12, 1, 23, 59, 59, 999999)
+    assert datelike_to_end(dt) == datetime(2000, 12, 1, 23, 59, 59, 999999)
+
+
 class CalendarPeriod:
     """ A period of time as a collection of units of time.
 
-    A CalendarPeriod is a specified span of time that can be proken into 
-    smaller units. For instance, the year '2000' lasts from the day 
+    A CalendarPeriod is a specified span of time that can be proken into
+    smaller units. For instance, the year '2000' lasts from the day
     Jan 1, 2000 to Dec 31, 2000, but includes all of Dec31st, 2000.
     That is the whole day from Dec 31, 2000 00:00:00.000000 to
     Dec 31, 2000 23:59:59.999999. It also includes the leap day Feb. 29.
     The size of the periods in the collection are determined as the
     largest period that can accurately hold the full period. For instance:
     y2020 = CalendarPeriod(start=datetime(2000, 1, 1), last=datetime(2000, 12, 31)
-    will include the whole year as months where 
+    will include the whole year as months where
     y2020 = CalendarPeriod(start=datetime(2000, 1, 1), last=datetime(2000, 12, 30)
     Will include the period from Dec 31, 2000 00:00:00.000000 to
     Dec 30, 2000 23:59:59.999999. When treated as a collection, it will return
@@ -1450,23 +1478,23 @@ class CalendarPeriod:
 
     @property
     def stop(self):
-        """ The final, _non_inclusive_ microsecond of this period.
-        """
-        return datelike_to_end(self.last) + timedelta(microseconds=1)
-
-    @property
-    def duration(self):
-        """ The total time over which them period lasts.
-
-        Self.stop - self.start.
-        """
-        return self.stop - self.start
+        return self.end + timedelta(microseconds=1)
 
     @property
     def end(self):
-        """ The final moment _inclusive_ , to the microsecond, of this period.
-        """
         return datelike_to_end(self.last)
+
+    @property
+    def duration(self):
+        return self.stop - self.start
+
+    @property
+    def last(self):
+        try:
+            if self._last is not None:
+                return self._last
+        except AttributeError:
+            return self[-1]
 
     whole_unit = whole_unit
     item_unit = item_unit
@@ -1482,7 +1510,7 @@ class CalendarPeriod:
         return result
 
     def __init__(self, start, last=None, end=None, duration=None, name=None):
-        """ 
+        """
         Parameters:
             start: a date or datetime representing the first moment in time for this period.
             last: a date or datetime represent int the last period in time for this period.
@@ -1499,24 +1527,23 @@ class CalendarPeriod:
             if not isinstance(last, datetime):
                 end = datetime.combine(end, time())
 
-            self.last = last
+            self._last = last
 
         elif duration is not None:
-            self.last = self.start + duration
+            self._last = self.start + duration
         else:
             try:
                 z = _zero_list(end)
             except TypeError as e:
-                raise TypeError(
-                    f"One of 'last', 'duration', or 'end' must be set.") from e
+                pass
 
-            d = datelike_to_dict(end)
-            for u in z:
-                try:
-                    d[u] = RANGES[u][-1]
-                except TypeError:
-                    d[u] = monthrange(end.year, end.month)[1]
-            self.last = datetime(**d)
+                d = datelike_to_dict(last)
+                for u in z:
+                    try:
+                        d[u] = RANGES[u][-1]
+                    except AttributeError:
+                        d[u] = monthrange(last.year, last.month)[1]
+                self.end = datetime(**d)
 
         if name is not None:
             self.name = name
@@ -1583,7 +1610,7 @@ class CalendarPeriod:
         return self.duration / timedelta(days=1)
 
     def __str__(self):
-        return f"({self.start}, {self.end})"
+        return f"({self.start}, {self.last})"
 
     def subunit_generator(self, unit):
         unit, units = _unit_pl(unit)
@@ -1603,19 +1630,15 @@ class CalendarPeriod:
                         yield from sub
 
     def __repr__(self):
-        return f"{self.__class__.__name__} {self.start} {self.last}"
+        uts = self.whole_unit()
 
     as_unit = subunit_generator
 
 
-def _unit_pl(unit):
-    if unit[-1] == "s":
-        units = unit
-        unit = unit[:-1]
-    else:
-        unit = unit
-        units = unit + "s"
-    return (unit, units)
+def test_unit_pl(unit):
+    assert _unit_pl("days") == ("day", "days")
+    assert _unit_pl("day") == ("day", "days")
+    assert _unit_pl("months") == ("month", "months")
 
 
 def _inc_months(dt, i):
@@ -1634,6 +1657,13 @@ def _inc_months(dt, i):
     d.update(dict(day=day, month=month, year=year))
 
     return dt.__class__(**d)
+
+
+def test_inc_months():
+    assert _inc_months(datetime(2000, 1, 1), 1) == datetime(2000, 2, 1)
+    assert _inc_months(datetime(2000, 12, 1)) == datetime(2001, 1, 1)
+    assert _inc_months(datetime(2000, 2, 28)) == datetime(2000, 3, 28)
+    assert _inc_months(datetime(2000, 2, 29)) == datetime(2000, 3, 31)
 
 
 class Year(CalendarPeriod):
@@ -1689,3 +1719,12 @@ def td_is_zero(td):
         if getattr(td, u) != 0:
             return False
     return True
+
+
+def test_td_is_zero():
+    td = timedelta()
+    assert td_is_zero(td)
+    td = timedelta(days=1)
+    assert not td_is_zero(td)
+    td = timedelta(microseconds=0)
+    assert not td_is_zero(td)
