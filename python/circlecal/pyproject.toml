@@ -19,8 +19,8 @@ workalendar = "^17.0.0"
 
 
 [tool.poetry.group.dev.dependencies]
-jupyterlab = "^4.0.10"
 pytest = "^8.0.0"
+jupyterlab = "^4.3.0"
 
 [build-system]
 requires = ["poetry-core"]
