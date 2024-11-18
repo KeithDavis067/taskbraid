@@ -1,0 +1,43 @@
+Type,Label,Internal ID,Compact Display,Summary,Chronological Position,Narrative Position,Color,Parent,Ongoing,Start Date,Latest Start Date,Earliest End Date,End Date,Duration,Child Range,Tags,Blocked by,Blocks,Constraints,Links,Image (Links only),Lead,Lead (Compact display),Assigned to,Assigned to (Compact display),Team,Team (Compact display),Location,Location (Compact display),Relates to,Relates to (Compact display),Event,Event (Compact display),gcal_id,gcal_id (Compact display),Status,Priority
+"Task","Design","TSK36","Design",,1,,"Green",,False,2024-01,,,2024-04-14,"3 months, 2 weeks",,"","","Prototype","","",,"Caleb Draper","CD","Bob Whitaker
+Joe Kim","BW
+JK","Technology","Technology","Headquarters","Headquarters","","","","","","","In progress","High"
+"Task","Enclosure Design","TSK18","Enclosure Design",,1.1,,"Green","Design",False,2024-01,,,2024-02,"2 months",,"","","","","",,"","","","","Technology","Technology","","","","","","","","","",""
+"Task","Circuit Board Design","TSK19","Circuit Board Design",,1.2,,"Green","Design",False,2024-02,,,2024-03,"2 months",,"","","","","",,"","","","","Technology","Technology","","","","","","","","","",""
+"Task","Materials Selection","TSK23","Materials Selection",,1.3,,"Green","Design",False,2024-04,,,2024-04-14,"2 weeks",,"","","","","",,"","","","","Technology","Technology","","","","","","","","","",""
+"Task","Prototype","TSK37","Prototype",,2,,"Teal",,False,2024-04-15,,,2024-07-31,"3 months, 2 weeks, 3 days",,"","Design","Validation and testing","","",,"Sophia Alvarez","SA","Cam Chen
+Bob Whitaker","CC
+BW","Technology
+Hardware","Technology
+Hardware","Factory","Factory","","","","","","","",""
+"Task","Create Proof of Concept","TSK22","Create Proof of Concept",,2.1,,"Teal","Prototype",False,2024-04-15,,,2024-05-28,"1 month, 2 weeks",,"","","","","",,"","","","","Technology
+Hardware","Technology
+Hardware","","","","","","","","","",""
+"Task","Firmware and Software Development","TSK20","Firmware and Software Developm",,2.2,,"Teal","Prototype",False,2024-06,,,2024-07,"2 months",,"","","","","",,"","","","","Technology","Technology","","","","","","","","","",""
+"Task","Validation and testing","TSK38","Validation and testing",,3,,"Blue",,False,2024-08,,,2024-09,"2 months",,"","Prototype","Manufacturing","","",,"Sophia Alvarez","SA","Cam Chen","CC","Technology","Technology","Factory","Factory","","","","","","","",""
+"Task","Tooling","TSK35","Tooling",,4.1,,"Indigo","Manufacturing",False,2024-10,,,2024-10,"1 month",,"","","","","",,"","","","","Hardware","Hardware","","","","","","","","","",""
+"Task","Manufacturing","TSK39","Manufacturing",,4,,"Indigo",,False,2024-10,,,2025-02,"5 months",,"","Validation and testing","","","",,"Cam Chen","CC","Joe Kim","JK","Hardware","Hardware","Factory","Factory","","","","","","","",""
+"Task","Initial Production Run","TSK33","Initial Production Run",,4.2,,"Indigo","Manufacturing",False,2024-11,,,2024-11,"1 month",,"","","Regulatory Testing","","",,"","","","","Hardware","Hardware","","","","","","","","","",""
+"Task","Sales Prep","TSK41","Sales Prep",,5,,"Red",,False,2024-11,,,2025-01,"3 months",,"","","","","",,"Ethan Fletcher","EF","Aria Gonzalez","AG","Sales","Sales","Headquarters","Headquarters","","","","","","","",""
+"Task","Sales Strategic Planning","TSK26","Sales Strategic Planning",,5.1,,"Red","Sales Prep",False,2024-11,,,2024-11,"1 month",,"","","","","",,"","","","","Sales","Sales","","","","","","","","","",""
+"Task","Full-Scale Production","TSK34","Full-Scale Production",,4.3,,"Indigo","Manufacturing",False,2024-12,,,2025-01,"2 months",,"","","","","",,"","","","","Hardware","Hardware","","","","","","","","","",""
+"Task","Key Retail Partnerships","TSK29","Key Retail Partnerships",,5.2,,"Red","Sales Prep",False,2024-12,,,2025-01,"2 months",,"","","","","",,"","","","","Sales","Sales","","","","","","","","","",""
+"Task","Regulatory Testing","TSK40","Regulatory Testing",,6,,"Purple",,False,2024-12,,,2025-01,"2 months",,"","Initial Production Run","","","",,"Caleb Draper","CD","Joe Kim","JK","Technology
+Hardware","Technology
+Hardware","Headquarters","Headquarters","","","","","","","",""
+"Task","Open to Orders","TSK30","Open to Orders",,5.3,,"Red","Sales Prep",False,2025-01,,,2025-01,"0 seconds",,"","","","","",,"","","","","Sales","Sales","","","","","","","","","",""
+"Task","Assembly and Packaging","TSK32","Assembly and Packaging",,4.4,,"Indigo","Manufacturing",False,2025-02,,,2025-02,"1 month",,"","","","","",,"","","","","Hardware","Hardware","","","","","","","","","",""
+"Task","Booth at HardwareCon 2024","TSK28","Booth at HardwareCon 2024",,7,,"Red",,False,2025-02-04,,,2025-02-04,"0 seconds",,"","","","","",,"Ethan Fletcher","EF","Aria Gonzalez","AG","Sales","Sales","","","","","","","","","",""
+"Person","Caleb Draper","PER2","CD",,,,"Green","Technology",False,,,,,"0 seconds",,"","","","","",,"","","","","","","","","","","","","","","",""
+"Person","Sophia Alvarez","PER5","SA",,,,"Green","Technology",False,,,,,"0 seconds",,"","","","","",,"","","","","","","","","","","","","","","",""
+"Person","Bob Whitaker","PER8","BW",,,,"Green","Technology",False,,,,,"0 seconds",,"","","","","",,"","","","","","","","","","","","","","","",""
+"Person","Joe Kim","PER9","JK",,,,"Indigo","Hardware",False,,,,,"0 seconds",,"","","","","",,"","","","","","","","","","","","","","","",""
+"Person","Cam Chen","PER7","CC",,,,"Indigo","Hardware",False,,,,,"0 seconds",,"","","","","",,"","","","","","","","","","","","","","","",""
+"Person","Ethan Fletcher","PER6","EF",,,,"Red","Sales",False,,,,,"0 seconds",,"","","","","",,"","","","","","","","","","","","","","","",""
+"Person","Aria Gonzalez","PER4","AG",,,,"Red","Sales",False,,,,,"0 seconds",,"","","","","",,"","","","","","","","","","","","","","","",""
+"Team","Technology","DEP3","Technology",,,,"Green",,False,,,,,"0 seconds",,"","","","","",,"","","","","","","","","","","","","","","",""
+"Team","Hardware","DEP6","Hardware",,,,"Indigo",,False,,,,,"0 seconds",,"","","","","",,"","","","","","","","","","","","","","","",""
+"Team","Sales","DEP5","Sales",,,,"Red",,False,,,,,"0 seconds",,"","","","","",,"","","","","","","","","","","","","","","",""
+"Location","Headquarters","OBJ8","Headquarters",,,,"Purple",,False,,,,,"0 seconds",,"","","","","",,"","","","","","","","","","","","","","","",""
+"Location","Factory","OBJ9","Factory",,,,"Purple",,False,,,,,"0 seconds",,"","","","","",,"","","","","","","","","","","","","","","",""
+"Event","test","EV1","test",,,,"Orange",,False,2024-05-01 02:00:00,,,2024-05-01 03:00:00,"1 hour",,"","","","","",,"","","","","","","","","","","","","","","",""
