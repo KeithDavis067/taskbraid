@@ -196,6 +196,12 @@ def _superunits(unit):
     return ru[ru.index(unit) + 1:]
 
 
+def is_superunit(left, right):
+    if left in _superunits(right):
+        return True
+    return False
+
+
 def test_superunits():
     assert _superunits("month") == ["year"]
     assert _superunits("day") == ["month", "year"]
