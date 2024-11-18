@@ -1461,35 +1461,56 @@ def test_datelike_to_end():
 class CalendarPeriod:
     """ A period of time as a collection of units of time.
 
-    A CalendarPeriod is a specified span of time that can be proken into
-    smaller units. For instance, the year '2000' lasts from the day
-    Jan 1, 2000 to Dec 31, 2000, but includes all of Dec31st, 2000.
-    That is the whole day from Dec 31, 2000 00:00:00.000000 to
-    Dec 31, 2000 23:59:59.999999. It also includes the leap day Feb. 29.
-    The size of the periods in the collection are determined as the
-    largest period that can accurately hold the full period. For instance:
-    y2020 = CalendarPeriod(start=datetime(2000, 1, 1), last=datetime(2000, 12, 31)
-    will include the whole year as months where
-    y2020 = CalendarPeriod(start=datetime(2000, 1, 1), last=datetime(2000, 12, 30)
-    Will include the period from Dec 31, 2000 00:00:00.000000 to
-    Dec 30, 2000 23:59:59.999999. When treated as a collection, it will return
-    days, rather than months.
+    CalendarPeriod is a period with a start, end, and duration
+    and is iterable over smaller units of time within it.
+    It is built to model the way people think of periods of time.
+    To see what role it plays, we will define the terms
+    terms: 'period', 'label', and 'moment.'
+    A 'moment' is an instance in time to which a specific 'label' can be applied.
+    The label 'January 1, 2022,' can refer to the very instance that day begins.
+    Since python usually uses microseconds as it's smallest unit of time, we will
+    then consider that label to be shorthand for 'January 1, 2022 00:00:00.000000'.
+    Alternatively, the label 'January 1, 2022' can also refer to the period
+    that includes all of the moments of time from January 1, 2022 to
+    just before January 2, 2022. In this case we think of that label as being
+    shorthand for all of the microseconds from
+    January 1, 2022 00:00:00.000000 to January 1, 2022, 23:59:59.999999.
+    CalendarPeriod repsesents this sort of time, while we use traditional
+    datetime objects to represent moments.
+
+    Any usnits of time not specified are assumed to be zero.
+    To specify the 20th minute of the 4th hour of January 1, 2022 set:
+    start to January 1, 2022 04:20.
     """
 
     @property
     def stop(self):
+        """ The first moment of the next period.
+
+        Analogous to how 'stop' is used in range objects, this
+        is the first moment of the next period, not to be included
+        in iteration over this period.
+        """
         return self.end + timedelta(microseconds=1)
 
     @property
     def end(self):
+        """ The final moment of this period.
+
+        The last specified moment of this unit.
+        """
         return datelike_to_end(self.last)
 
     @property
     def duration(self):
+        """ The duration as a timdelta instance.
+        """
         return self.stop - self.start
 
     @property
     def last(self):
+        """ The last sub-period of this period.
+        """
         try:
             if self._last is not None:
                 return self._last
@@ -1514,8 +1535,12 @@ class CalendarPeriod:
         Parameters:
             start: a date or datetime representing the first moment in time for this period.
             last: a date or datetime represent int the last period in time for this period.
-                Last refers to the beginning moment of the last period of time. So:
-                Dec 31, 2000 refers to the day from Dec 31, 2000 to one microsecond before Jan 1, 2001.
+            end:
+                end refers to the beginning moment of the next period of time.
+                The first moment of the period not included in this time.
+                For instance setting 'start' to Dec 31, 2000 and 'last' to Jan 1, 2001
+                would make the CelandarPeriod represent all microseconds from Dec 31, 2000 tor
+                to one microsecond before Jan 1, 2001.
             end: A date or datetime representing the very last moment in time of the period.
                 Ignored if last is set. Setting with 'last' is preferred.
         """
@@ -1631,6 +1656,7 @@ class CalendarPeriod:
 
     def __repr__(self):
         uts = self.whole_unit()
+        return f"<CalendarPeriod>: {self.start}, {self.stop}"
 
     as_unit = subunit_generator
 
