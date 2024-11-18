@@ -1541,34 +1541,32 @@ class CalendarPeriod:
                 For instance setting 'start' to Dec 31, 2000 and 'last' to Jan 1, 2001
                 would make the CelandarPeriod represent all microseconds from Dec 31, 2000 tor
                 to one microsecond before Jan 1, 2001.
-            end: A date or datetime representing the very last moment in time of the period.
-                Ignored if last is set. Setting with 'last' is preferred.
         """
         if not isinstance(start, datetime):
             start = datetime.combine(start, time())
         self.start = start
 
-        if last is not None:
-            if not isinstance(last, datetime):
+        if end is not None:
+            if not isinstance(end, datetime):
                 end = datetime.combine(end, time())
+            if end <= start:
+                raise TypeError("end must be after start.")
+            self._end = end
 
-            self._last = last
+        if last is not None:
+            if not isinstance(last, CalendarPeriod):
+
+            if last <= self.start:
+                raise TypeError("last must be after start.")
+
+            if not is_subunit(whole_unit(last)):
+                raise TypeError("last subunit must be smaller than start.")
+            self._last = CalendarPeriod(last)
 
         elif duration is not None:
             self._last = self.start + duration
-        else:
-            try:
-                z = _zero_list(end)
-            except TypeError as e:
-                pass
 
-                d = datelike_to_dict(last)
-                for u in z:
-                    try:
-                        d[u] = RANGES[u][-1]
-                    except AttributeError:
-                        d[u] = monthrange(last.year, last.month)[1]
-                self.end = datetime(**d)
+        else:
 
         if name is not None:
             self.name = name
