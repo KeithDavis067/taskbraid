@@ -135,37 +135,50 @@ class DTPrecision:
 
     def __setattr__(self, name, value):
         if name in UNITS:
-            # If this is None, all lower values
-            # should be cleared to None.
-            if value is None:
-                for u in [name] + _subunits(name):
-                    super().__setattr__(u, None)
-                return
-
-            # Ensure all superunits are set to
-            # a value or set them to their start.
+            # Catch old values to reset if failure.
             old = self.to_dict()
-            su = _superunit(name)
             try:
-                if getattr(self, su) is None:
-                    try:
-                        setattr(self, su, self.ranges[su].start)
-                    # If month has no value, set to one. This should trigger
-                    # setting month.
-                    except AttributeError:
-                        setattr(self, su, 1)
-            # If we're at the top of the list of units.
-            except TypeError:
-                pass
-            # Now set this value, if day, month should be set and ranges
-            # should return a a range for the month.
-            if value in self.ranges[name]:
-                super().__setattr__(name, value)
-            else:
+                # If this is None, all lower values
+                # should be cleared to None.
+                if value is None:
+                    for u in [name] + _subunits(name):
+                        super().__setattr__(u, None)
+                    return
+
+                # Ensure all superunits are set to
+                # a value or set them to their start value.
+                su = _superunit(name)
+                try:
+                    if getattr(self, su) is None:
+                        try:
+                            setattr(self, su, self.ranges[su].start)
+                        # If month has no value, set to one. This should trigger
+                        # setting month.
+                        except AttributeError:
+                            setattr(self, su, 1)
+                # If we're at the top of the list of units.
+                except TypeError:
+                    pass
+                # Now set this value, if day, month should be set and ranges
+                # should return a range for the month.
+                if value in self.ranges[name]:
+                    super().__setattr__(name, value)
+                else:
+                    raise ValueError(f"{value} not in range for {name}")
+                # Ensure new value doesn't make lower values out of range.
+
+                for u in _subunits(name):
+                    v = getattr(self, u)
+                    if v is not None:
+                        if v not in self.ranges[u]:
+                            raise ValueError(f"Setting {name} would put {u} "
+                                             f"out of range.")
+
+            except ValueError as e:
                 for u, v in old.items():
                     super().__setattr__(u, v)
-                raise ValueError(f"{value} not in range for {name}")
-
+                raise e
+        # Use normal if this isn't a unit.
         super().__setattr__(name, value)
 
     def __init__(self, **kwargs):
@@ -176,14 +189,55 @@ class DTPrecision:
             except KeyError:
                 pass
 
-    def to_dict(self):
-        return dict([(u, getattr(self, u)) for u in self.UNITS])
+    def to_dict(self, skipnone=False):
+        if skipnone:
+            return dict([(u, getattr(self, u)) for
+                         u in self.UNITS if getattr(self, u) is not None])
+        else:
+            return dict([(u, getattr(self, u)) for u in self.UNITS])
+
+    def precision(self):
+        for u in reversed(self.UNITS):
+            if getattr(self, u) is not None:
+                return u
+
+    def to_datetime(self, force=False):
+        """ Convert to a datetime.
+
+        keywords:
+            force: If true, set year, time, and day to smallest value
+            in range before converting to datetime. Avoids error.
+
+        If precision is less than 1 day, let datetime
+        this will raise an error.
+        """
+        dt_required = ["year", "month", "day"]
+        if force:
+            cp = self.__class__(**self.to_dict())
+            for u in dt_required:
+                if getattr(cp, u) is None:
+                    setattr(cp, u, cp.ranges[u])
+        else:
+            cp = self
+        return datetime(**cp.to_dict(skipnone=True))
 
 
 class Test_DTPrecision:
     def test_to_dict(self):
         dtp = DTPrecision()
         assert dtp.to_dict() == dict([(u, None) for u in UNITS])
+        assert dtp.to_dict(skipnone=True) == {}
+        dtp = DTPrecision(year=2024, day=1)
+        assert dtp.to_dict() == dict(year=2024,
+                                     month=1,
+                                     day=1,
+                                     hour=None,
+                                     minute=None,
+                                     second=None,
+                                     microsecond=None)
+        assert dtp.to_dict(skipnone=True) == dict(year=2024,
+                                                  month=1,
+                                                  day=1)
 
     def test_init(self):
         dtp = DTPrecision(year=2024)
@@ -194,15 +248,79 @@ class Test_DTPrecision:
         assert dtp.day == 1
         assert dtp.minute == 20
 
+    def test_assign(self):
+        dtp = DTPrecision()
+        # Default is None for everything.
+        for u in dtp.UNITS:
+            assert getattr(dtp, u) is None
+
+        # Setting the smallest unit should set all
+        # previous units to their smallest value.
+        dtp.microsecond = 0
+        # Make sure when month and year was set,
+        # day ranges was set.
+        assert dtp.ranges["day"] == range(1, 32)
+        # Make sure every unit is set to it's start value.
+        for u, r in dtp.ranges.items():
+            assert getattr(dtp, u) == r.start
+
+        # Ensure error is raised when outside value.
+        dtp.year = 2024
+        dtp.month = 2
+        assert dtp.ranges["day"] == range(1, 30)
+        with pytest.raises(ValueError):
+            dtp.day = 30
+
+        with pytest.raises(ValueError):
+            dtp = DTPrecision(year=2000, microsecond=10000000)
+
+        # Ensure changing month to February throws error when
+        # day is out of range.
+        #
+        dtp = DTPrecision(year=2002, month=1, day=31)
+        with pytest.raises(ValueError):
+            dtp.month = 2
+
+    def test_clear(self):
+        dtp = DTPrecision(year=2024, month=4, day=1, minute=10)
+        assert dtp.to_dict() == dict(year=2024,
+                                     month=4,
+                                     day=1,
+                                     hour=0,
+                                     minute=10,
+                                     second=None,
+                                     microsecond=None)
+        dtp.month = None
+        assert dtp.to_dict() == dict(year=2024,
+                                     month=None,
+                                     day=None,
+                                     hour=None,
+                                     minute=None,
+                                     second=None,
+                                     microsecond=None)
+
+    def test_precision(self):
+        dtp = DTPrecision(year=2024, month=1, day=10)
+        assert dtp.precision() == "day"
+        dtp.microsecond = 0
+        assert dtp.precision() == "microsecond"
+
+    def test_to_datetime(self):
+        dtp = DTPrecision(year=2023, month=1, day=1)
+        assert datetime(2023, 1, 1) == dtp.to_datetime()
+        dtp = DTPrecision(year=2023, month=1)
+        with pytest.raises(TypeError):
+            dtp.to_datetime()
+
 
 class TUnit:
     UNITS = UNITS
 
-    @property
+    @ property
     def subunit(self):
         return _subunit(self)
 
-    @property
+    @ property
     def superunit(self):
         return _superunit(self)
 
@@ -267,14 +385,14 @@ class CalendarPeriod:
     start to January 1, 2022 04:20.
     """
 
-    @property
+    @ property
     def start(self):
         # Holding start as unmodifiable after creation for now.
         # May edit when modifying stop and end automatically
         # is implemented.
         return self._start
 
-    @property
+    @ property
     def stop(self):
         """ The first moment of the next time period.
         Stop is the first moment that is definitely in another time period.
@@ -283,7 +401,7 @@ class CalendarPeriod:
         """
         return self._stop
 
-    @property
+    @ property
     def end(self):
         """ The last microsecond of this period.
         """
