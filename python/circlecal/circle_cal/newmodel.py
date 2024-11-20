@@ -122,6 +122,22 @@ class DTPrecision:
     UNITS = UNITS
     RANGES = RANGES
 
+    @classmethod
+    def from_dtlike(cls, o):
+        d = {}
+        for u in cls.UNITS:
+            try:
+                d[u] = getattr(o, u)
+            except AttributeError:
+                pass
+        if d is {}:
+            raise TypeError(f"unable to coerce {o} to timelike.")
+
+        return cls(**d)
+
+    from_datetime = from_dtlike
+    from_date = from_dtlike
+
     @property
     def ranges(self):
         r = self.RANGES.copy()
@@ -181,11 +197,18 @@ class DTPrecision:
         # Use normal if this isn't a unit.
         super().__setattr__(name, value)
 
-    def __init__(self, **kwargs):
+    def __init__(self, *args, **kwargs):
+        params = dict(zip(UNITS, args))
+        for i, u in enumerate(params):
+            if u in kwargs:
+                raise (f"argument for function given by name "
+                       f"({u}) and position ({i})")
+
+        params.update(kwargs)
+
         for u in self.UNITS:
             try:
-                v = kwargs.pop(u)
-                setattr(self, u, v)
+                setattr(self, u, params[u])
             except KeyError:
                 pass
 
@@ -199,7 +222,7 @@ class DTPrecision:
     def precision(self):
         for u in reversed(self.UNITS):
             if getattr(self, u) is not None:
-                return u
+                return TUnit(u)
 
     def to_datetime(self, force=False):
         """ Convert to a datetime.
@@ -220,6 +243,21 @@ class DTPrecision:
         else:
             cp = self
         return datetime(**cp.to_dict(skipnone=True))
+
+    def __eq__(self, o):
+        if self is o:
+            return True
+
+        if isinstance(o, (date, datetime)):
+            obj = self.from_dtlike(o)
+
+        else:
+            obj = o
+
+        for u in self.UNITS:
+            if getattr(self, u) != getattr(obj, u):
+                return False
+        return True
 
 
 class Test_DTPrecision:
@@ -247,6 +285,26 @@ class Test_DTPrecision:
         assert dtp.year == 2024
         assert dtp.day == 1
         assert dtp.minute == 20
+
+        dtp = DTPrecision(2024, day=1)
+        assert dtp.year == 2024
+        assert dtp.month == 1
+        assert dtp.day == 1
+        for u in dtp.UNITS[3:]:
+            assert getattr(dtp, u) is None
+
+        dtp = DTPrecision(2024, 1, 1, 0)
+
+        assert dtp.year == 2024
+        assert dtp.day == 1
+        assert dtp.month == 1
+        assert dtp.hour == 0
+
+        for u in dtp.UNITS[4:]:
+            assert getattr(dtp, u) is None
+
+        with pytest.raises(TypeError):
+            dtp = DTPrecision(2024, 1, 1, day=1)
 
     def test_assign(self):
         dtp = DTPrecision()
@@ -311,6 +369,28 @@ class Test_DTPrecision:
         dtp = DTPrecision(year=2023, month=1)
         with pytest.raises(TypeError):
             dtp.to_datetime()
+
+    def test_eq(self):
+        dtp = DTPrecision()
+        odtp = dtp
+        assert odtp == dtp
+
+        odtp == DTPrecision()
+
+        assert odtp == dtp
+
+        assert not (DTPrecision(2023) == DTPrecision(2024))
+        assert (DTPrecision(2023) != DTPrecision(2024))
+
+        assert DTPrecision(2023, 1, 1) == date(2023, 1, 1)
+        assert not (DTPrecision(2023, 1, 1,) == datetime(2023, 1, 1))
+        assert DTPrecision(year=2023,
+                           month=1,
+                           day=1,
+                           hour=0,
+                           minute=0,
+                           second=0,
+                           microsecond=0) == datetime(2023, 1, 1)
 
 
 class TUnit:
