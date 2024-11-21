@@ -123,7 +123,11 @@ class DTPrecision:
     RANGES = RANGES
 
     @classmethod
-    def from_dtlike(cls, o):
+    def from_attributes(cls, o, set_trailing_zeros=False):
+        """ Return a DTPrecision instance from the unit attributes of an object.
+
+        set_trailing_zeros to True if all zeros are taken as significantly zero.
+        """
         d = {}
         for u in cls.UNITS:
             try:
@@ -132,11 +136,15 @@ class DTPrecision:
                 pass
         if d is {}:
             raise TypeError(f"unable to coerce {o} to timelike.")
+        if not set_trailing_zeros:
+            for u in reversed(cls.UNITS):
+                if d[u] == 0:
+                    d[u] = None
 
         return cls(**d)
 
-    from_datetime = from_dtlike
-    from_date = from_dtlike
+    from_datelike = from_attributes
+    from_date = from_attributes
 
     @property
     def ranges(self):
@@ -239,7 +247,7 @@ class DTPrecision:
             cp = self.__class__(**self.to_dict())
             for u in dt_required:
                 if getattr(cp, u) is None:
-                    setattr(cp, u, cp.ranges[u])
+                    setattr(cp, u, cp.ranges[u].start)
         else:
             cp = self
         return datetime(**cp.to_dict(skipnone=True))
@@ -249,7 +257,7 @@ class DTPrecision:
             return True
 
         if isinstance(o, (date, datetime)):
-            obj = self.from_dtlike(o)
+            obj = self.from_attributes(o)
 
         else:
             obj = o
@@ -258,6 +266,88 @@ class DTPrecision:
             if getattr(self, u) != getattr(obj, u):
                 return False
         return True
+
+    def __gt__(self, o):
+        return self.to_datetime(force=True) > _any_to_datetime(o)
+
+    def __lt__(self, o):
+        return self.to_datetime(force=True) < _any_to_datetime(o)
+
+    def __sub__(self, o):
+        return self.to_datetime(force=True) - _any_to_datetime(o)
+
+    def __rsub__(self, o):
+        return _any_to_datetime(o) - self.to_datetime(force=True)
+
+    def __add__(self, o):
+        p = self.precision()
+        new = self.from_attributes(self.to_datetime(force=True) + o)
+        if p < new.precision():
+            for u in self.UNITS:
+                if u >= new.precision():
+                    setattr(new, u, new.ranges.start)
+
+        return new
+
+    def __radd__(self, o):
+        return o + self.to_datetime(force=True)
+
+    def __repr__(self):
+        d = self.to_dict(skipnone=True)
+        colons = []
+        dashes = [str(d["year"])]
+
+        for u in ["month", "day"]:
+            try:
+                if d[u] is not None:
+                    dashes.append(f"{d[u]:02}")
+            except KeyError:
+                pass
+
+        for u in ["hour", "minute", "second"]:
+            try:
+                if d[u] is not None:
+                    colons.append(f"{d[u]:02}")
+            except KeyError:
+                pass
+        try:
+            if d["microsecond"] is not None:
+                mic = f"{d["microsecond"]:06}"
+            else:
+                mic = ""
+        except KeyError:
+            mic = ""
+
+        dashes = "-".join(dashes)
+        colons = ":".join(colons)
+        s = " ".join([dashes, colons])
+        if mic != "":
+            s += "." + mic
+        return self.__class__.__name__ + ":" + s
+
+    def increment(self):
+        u = self.precision().name
+        nxt = getattr(self, u) + 1
+        while nxt not in self.ranges[u]:
+            setattr(self, u, self.ranges[u].start)
+            u = _superunit(u)
+            if u is None:
+                raise TypeError("cannot increase beyond year limit.")
+            nxt = getattr(self, u) + 1
+        setattr(self, u, nxt)
+
+
+def _any_to_datetime(o):
+    if isinstance(o, datetime):
+        return o
+    try:
+        return o.to_datetime(force=True)
+    except AttributeError:
+        pass
+    try:
+        return datetime.combine(o, time())
+    except TypeError as e:
+        raise TypeError("unable to coeerce object to datetime.") from e
 
 
 class Test_DTPrecision:
@@ -439,6 +529,9 @@ class TUnit:
 
         return self > o
 
+    def __repr__(self):
+        return "Unit: " + self.name
+
 
 class CalendarPeriod:
     """ A period of time as a collection of units of time.
@@ -487,7 +580,20 @@ class CalendarPeriod:
         """
         return self.stop - timedelta(microseconds=1)
 
-    def __init__(self, start, stop=None, end=None, duration=None, name=None):
+    @property
+    def unit(self):
+        return min(self.start.precision(), self.stop.precision())
+
+    @property
+    def subunit(self):
+        return _subunit(self.unit)
+
+    @property
+    def duration(self):
+        return self.stop - self.start
+
+    def __init__(self, start, stop=None,
+                 duration=None, name=None, all_zeros_significant=False):
         """
         Parameters:
             start: a date or datetime representing the first moment in time for this period.
@@ -499,7 +605,17 @@ class CalendarPeriod:
                 to one microsecond before Jan 1, 2001.
             last: a date or datetime represent int the last period in time for this period.
         """
-        pass
+        self._start = DTPrecision.from_attributes(
+            start, set_trailing_zeros=all_zeros_significant)
+        if stop is not None:
+            stop = DTPrecision.from_attributes(
+                stop,  set_trailing_zeros=all_zeros_significant)
+
+        elif duration is not None:
+            stop = self.start + duration
+
+        self._stop = stop
+
         # if not isinstance(start, datetime):
         #     start = datetime.combine(start, time())
         # self._start = start
@@ -517,6 +633,45 @@ class CalendarPeriod:
         #
         # if name is not None:
         #     self.name = name
+        #
+    def __getitem__(self, i):
+        try:
+            start = i.start
+        except AttributeError:
+            start = i
+
+        try:
+            if i.stop is None:
+                stop = start
+            else:
+                stop = i.stop
+        except AttributeError:
+            stop = start + 1
+
+        try:
+            if i.step is None:
+                step = 1
+            else:
+                step = i.step
+        except AttributeError:
+            step = 1
+
+        items = []
+        idt = self.start
+        newdt = DTPrecision.from_attributes(self.start)
+        for j in range(start, stop, step):
+            for k in range(0, step):
+                newdt.increment()
+            items.append(CalendarPeriod(start=idt, stop=newdt))
+            idt = newdt
+        if items[-1].stop > self.stop:
+            raise IndexError()
+        if len(items) == 1:
+            return items[0]
+        return items
+
+    def __repr__(self):
+        return str(self.start) + str(self.stop)
 
 
 if pytest is not False:
