@@ -5,6 +5,7 @@ from dateutil.relativedelta import relativedelta
 from calendar import monthrange, month_name, day_name
 from workalendar.usa import UnitedStates, Indiana
 from pytz import timezone
+from copy import copy
 
 
 ETZ = timezone("America/New_York")
@@ -134,11 +135,14 @@ class DTPrecision:
                 d[u] = getattr(o, u)
             except AttributeError:
                 pass
-        if d is {}:
+        if d == {}:
             raise TypeError(f"unable to coerce {o} to timelike.")
         if not set_trailing_zeros:
             for u in reversed(cls.UNITS):
-                if d[u] == 0:
+                try:
+                    if d[u] == 0:
+                        d[u] = None
+                except KeyError:
                     d[u] = None
 
         return cls(**d)
@@ -231,6 +235,22 @@ class DTPrecision:
         for u in reversed(self.UNITS):
             if getattr(self, u) is not None:
                 return TUnit(u)
+
+    def to_precision(self, prec):
+        p = self.precision()
+        if p < prec:
+            return self
+
+        try:
+            u = prec.name
+        except AttributeError:
+            u = prec
+        try:
+            setattr(self, u, 0)
+            return self
+        except ValueError:
+            setattr(self, u, 1)
+            return self
 
     def to_datetime(self, force=False):
         """ Convert to a datetime.
@@ -332,9 +352,16 @@ class DTPrecision:
             setattr(self, u, self.ranges[u].start)
             u = _superunit(u)
             if u is None:
-                raise TypeError("cannot increase beyond year limit.")
+                raise StopIteration
             nxt = getattr(self, u) + 1
         setattr(self, u, nxt)
+
+    def __next__(self):
+        self.increment()
+        return copy(self)
+
+    def __iter__(self):
+        return self.__class__.from_attributes(self)
 
 
 def _any_to_datetime(o):
@@ -614,6 +641,10 @@ class CalendarPeriod:
         elif duration is not None:
             stop = self.start + duration
 
+        # If we haven't found a stop yet, set it to the next value of precision.
+        if stop is None:
+            stop = next(iter(self.start))
+
         self._stop = stop
 
         # if not isinstance(start, datetime):
@@ -635,14 +666,18 @@ class CalendarPeriod:
         #     self.name = name
         #
     def __getitem__(self, i):
+        l = len(self)
         try:
             start = i.start
         except AttributeError:
             start = i
 
+        if start > l - 1:
+            raise IndexError
+
         try:
             if i.stop is None:
-                stop = start
+                stop = start + 1
             else:
                 stop = i.stop
         except AttributeError:
@@ -656,22 +691,36 @@ class CalendarPeriod:
         except AttributeError:
             step = 1
 
+        if stop > len(self):
+            raise IndexError
+
         items = []
-        idt = self.start
-        newdt = DTPrecision.from_attributes(self.start)
-        for j in range(start, stop, step):
-            for k in range(0, step):
-                newdt.increment()
-            items.append(CalendarPeriod(start=idt, stop=newdt))
-            idt = newdt
-        if items[-1].stop > self.stop:
-            raise IndexError()
+        counter = iter(self.start)
+        # Increment to start
+        for i in range(0, start):
+            counter.increment()
+        for i in range(start, stop, step):
+            low = copy(counter)
+            items.append(self.__class__(low, next(counter)))
+            # Roll forward steplength.
+            for j in range(step - 1):
+                counter.increment()
+
         if len(items) == 1:
             return items[0]
         return items
 
+    def __len__(self):
+        match self.unit:
+            case "year":
+                return self.stop.year - self.start.year
+            case "month":
+                return self.stop.month - self.start.month
+            case _:
+                return (self.stop - self.start) / timedelta(**{self.unit + "s": 1})
+
     def __repr__(self):
-        return str(self.start) + str(self.stop)
+        return f"[{self.start}, {self.stop}]"
 
 
 if pytest is not False:
