@@ -127,7 +127,24 @@ class DTPrecision:
     def from_attributes(cls, o, set_trailing_zeros=False):
         """ Return a DTPrecision instance from the unit attributes of an object.
 
-        set_trailing_zeros to True if all zeros are taken as significantly zero.
+        Read the values on the attributes listed in DTPrecision.UNITS and
+        return a DTPrecision object with units set to those values. Any unit
+        values that return zero will be set to None
+        if they are not followed by a smaller unit with a non-zero value.
+        Set 'set_trailing_zeros' to True
+        to force all zeros to zero.
+
+        In the common case of date and datetime objects these rules imply
+        the following behavior:
+
+        datetime.date objects always have a non-zero value for
+        year, month, and date, so DTPrecision made from
+        datetime.date objects will always have a precision of "day".
+        datetime.datetime objects will create a DTPrecision object
+        with precision equal to the smallest unit with a nonzero
+        value, unless "set_trailing_zeros" is True. In which case they will
+        have a precision of "microsecond."
+
         """
         d = {}
         for u in cls.UNITS:
@@ -238,19 +255,20 @@ class DTPrecision:
 
     def to_precision(self, prec):
         p = self.precision()
-        if p < prec:
-            return self
+        if p <= prec:
+            return copy(self)
+
+        new = copy(self)
 
         try:
             u = prec.name
         except AttributeError:
             u = prec
         try:
-            setattr(self, u, 0)
-            return self
+            setattr(new, u, 0)
         except ValueError:
-            setattr(self, u, 1)
-            return self
+            setattr(new, u, 1)
+        return new
 
     def to_datetime(self, force=False):
         """ Convert to a datetime.
@@ -273,18 +291,50 @@ class DTPrecision:
         return datetime(**cp.to_dict(skipnone=True))
 
     def __eq__(self, o):
+        """ Determine equlity of value and precision. See details.
+
+        DTPrecision objects are equal to objects that meet
+        the following conditions:
+
+        1) When converted to a DTPrecision object their precision
+        is not greater than self.
+        3) If an attribute is None on self, then it must be
+        None, undefined, or zero on other.
+        4) If the attribute is not None on self, then it must
+        be equal to the value on other.
+        """
         if self is o:
             return True
 
-        if isinstance(o, (date, datetime)):
-            obj = self.from_attributes(o)
-
-        else:
-            obj = o
+        # If self is more precise then false.
+        if self.precision() > self.__class__.from_attributes(o).precision():
+            return False
 
         for u in self.UNITS:
-            if getattr(self, u) != getattr(obj, u):
-                return False
+
+            try:
+                if getattr(self, u) != getattr(o, u):
+                    if getattr(self, u) is None:
+                        # Declare nonequal if self is None and
+                        # other value is not zero.
+                        if getattr(o, u) != 0:
+                            return False
+                    # self and other unit values don't match and
+                    # self isn't None, then nonequal.
+                    else:
+                        return False
+
+            # Of other unit is not an attribute.
+            except AttributeError:
+                # If object doesn't at least have a "year" attribute
+                # then it isn't a datelike.
+                if u == "year":
+                    raise TypeError(f"cannot compare non-datelike to "
+                                    f"{self.__class__.__name__}.")
+                # If the attribute isn't declared, and self is not None
+                # then nonequal.
+                if getattr(self, u) is not None:
+                    return False
         return True
 
     def __gt__(self, o):
@@ -500,14 +550,34 @@ class Test_DTPrecision:
         assert (DTPrecision(2023) != DTPrecision(2024))
 
         assert DTPrecision(2023, 1, 1) == date(2023, 1, 1)
-        assert not (DTPrecision(2023, 1, 1,) == datetime(2023, 1, 1))
+        assert (DTPrecision(2023, 1, 1) == datetime(2023, 1, 1))
+        assert not (DTPrecision(2023, 1, 1) == datetime(2023, 1, 1, 1))
         assert DTPrecision(year=2023,
                            month=1,
                            day=1,
                            hour=0,
                            minute=0,
                            second=0,
-                           microsecond=0) == datetime(2023, 1, 1)
+                           microsecond=0) == datetime(2023, 1, 1, 0, 0, 0, 0)
+
+        def test_to_precision(self):
+            dtp = DTPrecision(2024, minute=10)
+            assert dtp.year == 2024
+            assert dtp.month == 1
+            assert dtp.day == 1
+            assert dtp.minute == 10
+            assert dtp.second is None
+            assert dtp.microsecond is None
+
+            out = dtp.to_precision("second")
+            assert dtp.year == 2024
+            assert dtp.month == 1
+            assert dtp.day == 1
+            assert dtp.minute == 10
+            assert dtp.second is 0
+            assert dtp.microsecond is None
+
+            assert out is dtp
 
 
 class TUnit:
